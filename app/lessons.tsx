@@ -1,101 +1,162 @@
-import { useRouter, useLocalSearchParams } from 'expo-router'; // Import useLocalSearchParams
-import React from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+// ... rest of imports
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
-import Mascot from '../assets/images/Mascot.svg';
+// --- IMPORT SUPABASE CLIENT ---
+import { supabase } from '../utils/supabase';
+
 import Coin from '../assets/images/coin.svg';
+import Mascot from '../assets/images/Mascot.svg';
 import MascotFarmer from '../assets/images/MascotFarmer.svg';
 
-// --- THIS IS THE FULL LIST OF LESSONS ---
-// We've added Lesson 6 with a 'theme'
-const ALL_LESSONS = [
-  {
-    number: '1',
-    title: 'Basics of Sustainable Farming',
-    description: "How to grow plants sustainably...",
-    points: 1000,
-    status: 'locked',
-  },
-  {
-    number: '2',
-    title: 'Healthy Soil for Better Plants',
-    description: 'How to make soil rich with banana waste compost...',
-    points: 1500,
-    status: 'locked',
-  },
-  {
-    number: '3',
-    title: 'Shade and Plant Diversity for Bananas',
-    description: 'How to use shade trees and mixed crops...',
-    points: 1000,
-    status: 'locked',
-  },
-  {
-    number: '4',
-    title: 'Smart Water Use for Banana Farms',
-    description: 'How to save water with mulching and drip...',
-    points: 1500,
-    status: 'locked',
-  },
-  {
-    number: '5',
-    title: 'Natural Pest Control and Clean Harvesting',
-    description: 'How to stop pests with neem, pick ripe bananas...',
-    points: 1000,
-    status: 'locked',
-  },
-  {
-    number: '6', // The new lesson
-    title: 'Women-Led Sustainable Farming in Kerala',
-    description: 'Learn from women farmers in Kerala who grow...',
-    points: 1000,
-    status: 'locked',
-    theme: 'women', // The new property for pink style
-  },
-];
-// ----------------------------------------
+// --- TYPE DEFINITIONS ---
 
-// Reusable Lesson Card Component
-function LessonCard({
-  lesson,
-  isCurrent = false,
-}: {
-  lesson: (typeof ALL_LESSONS)[0];
+// Define the shape of data coming from the 'lessons' table
+interface LessonData {
+  id: number;
+  title: string;
+  description: string;
+  sequence: number;
+  points: number;
+  content_path: string | null;
+  theme: string | null; // Added to support your custom styling
+}
+
+// Define the final state structure for the UI
+interface Lesson extends LessonData {
+  status: 'current' | 'completed' | 'locked';
+}
+
+// --- DATA FETCHING & PROCESSING LOGIC ---
+
+/**
+ * Fetches all available lessons and merges them with the user's completed status.
+ */
+const fetchLessonsAndProgress = async (): Promise<{lessons: Lesson[], lastCompletedId: number}> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+
+  if (!userId) {
+    // If no user, treat all lessons as locked and uncompleted
+    const { data: allLessons } = await supabase
+      .from('lessons')
+      .select('*')
+      .order('sequence', { ascending: true })
+      .returns<LessonData[]>();
+    
+    const guestLessons: Lesson[] = (allLessons || []).map(lesson => ({
+      ...lesson,
+      status: lesson.sequence === 1 ? 'current' : 'locked', // Allow first lesson to be current for guest/new user
+    }));
+
+    return { lessons: guestLessons, lastCompletedId: 0 };
+  }
+
+  // 1. Fetch ALL lessons
+  const { data: allLessons, error: lessonsError } = await supabase
+    .from('lessons')
+    .select('*')
+    .order('sequence', { ascending: true })
+    .returns<LessonData[]>();
+
+  if (lessonsError) {
+    console.error('Error fetching lessons:', lessonsError.message);
+    Alert.alert('Data Error', 'Failed to load lessons from the server.');
+    return { lessons: [], lastCompletedId: 0 };
+  }
+
+  // 2. Fetch User's completed lessons
+  const { data: completedLessons, error: progressError } = await supabase
+    .from('user_lessons')
+    .select('lesson_id')
+    .eq('user_id', userId);
+
+  if (progressError) {
+    console.warn('Error fetching user progress:', progressError.message);
+  }
+
+  const completedIds = new Set((completedLessons || []).map(c => c.lesson_id));
+
+  // Determine the sequence number of the most recently completed lesson
+  let lastCompletedId = 0;
+  if (completedLessons) {
+    const completedSequences = allLessons
+      .filter(l => completedIds.has(l.id))
+      .map(l => l.sequence);
+    
+    if (completedSequences.length > 0) {
+      lastCompletedId = Math.max(...completedSequences);
+    }
+  }
+
+  // 3. Combine data and determine status
+  const finalLessons: Lesson[] = (allLessons || []).map(lesson => {
+    const isCompleted = completedIds.has(lesson.id);
+    let status: 'current' | 'completed' | 'locked' = 'locked';
+
+    if (isCompleted) {
+      status = 'completed';
+    } else if (lesson.sequence === lastCompletedId + 1) {
+      status = 'current';
+    } else if (lastCompletedId === 0 && lesson.sequence === 1) {
+      // Allow the first lesson to be current if nothing is completed
+      status = 'current';
+    }
+
+    return {
+      ...lesson,
+      status,
+    } as Lesson;
+  });
+  
+  return { lessons: finalLessons, lastCompletedId };
+};
+
+// --- Reusable Lesson Card Component ---
+interface LessonCardProps {
+  lesson: Lesson;
   isCurrent?: boolean;
-}) {
-  const router = useRouter();
-  const { number, title, description, points, status, theme } = lesson;
+}
 
-  // --- STYLE LOGIC UPDATED ---
-  // It now also checks for the 'women' theme
+const LessonCard: React.FC<LessonCardProps> = ({ lesson, isCurrent = false }) => {
+  const router = useRouter();
+  const { id, title, description, points, status, theme } = lesson;
+
+  // --- STYLE LOGIC ---
   const cardStyle = [
     styles.lessonCard,
     isCurrent && styles.currentLessonCard,
     status === 'completed' && styles.completedLessonCard,
     status === 'locked' && styles.lockedLessonCard,
+    // Apply special theme style only if it's not completed
     theme === 'women' && status !== 'completed' && styles.womenLessonCard,
   ];
-  // -------------------------
+
+  // Logic to determine if the lesson is actionable
+  const isActionable = status !== 'locked';
 
   return (
     <TouchableOpacity
       style={cardStyle}
-      disabled={status === 'locked'}
+      disabled={!isActionable}
       onPress={() =>
         router.push({
           pathname: '/lesson/[id]',
-          params: { id: number },
+          params: { id: id }, // Use the Supabase 'id' for routing
         })
       }>
       <Text style={[styles.lessonNumber, isCurrent && styles.currentLessonNumber]}>
-        {number}
+        {lesson.sequence}
       </Text>
       <View style={styles.lessonContent}>
         <Text style={styles.lessonTitle}>{title}</Text>
@@ -109,39 +170,53 @@ function LessonCard({
       </View>
     </TouchableOpacity>
   );
-}
+};
 
+
+// --- LESSONS SCREEN MAIN COMPONENT ---
 export default function LessonsScreen() {
-  // --- THIS IS THE NEW DYNAMIC LOGIC ---
-  // Read the signal from the URL (e.g., lesson_completed=2)
   const { lesson_completed } = useLocalSearchParams<{ lesson_completed?: string }>();
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastCompletedSeq, setLastCompletedSeq] = useState(0);
+
+  // Load lessons from Supabase on component mount
+  const loadLessons = useCallback(async () => {
+    setLoading(true);
+    const { lessons: fetchedLessons, lastCompletedId: completedSeq } = await fetchLessonsAndProgress();
+    setLessons(fetchedLessons);
+    setLastCompletedSeq(completedSeq);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    // Re-run loadLessons whenever the screen is focused or 'lesson_completed' parameter changes
+    // The router replace in LoginScreen uses this param for simple navigation signaling
+    loadLessons(); 
+  }, [lesson_completed, loadLessons]);
   
-  // Get the number of the last completed lesson
-  // If nothing is passed, default to '0' (meaning no lessons are complete)
-  const lastCompletedId = parseInt(lesson_completed || '0', 10);
+  // Use useMemo to filter and compute sections only when 'lessons' changes
+  const { currentLesson, completedLessons, upcomingLessons, totalScore } = useMemo(() => {
+    const current = lessons.find((l) => l.status === 'current');
+    const completed = lessons.filter((l) => l.status === 'completed');
+    const upcoming = lessons.filter((l) => l.status === 'locked');
+    const score = completed.reduce((sum, l) => sum + l.points, 0);
 
-  // Dynamically set status for all lessons
-  const LESSON_DATA = ALL_LESSONS.map((lesson) => {
-    const lessonId = parseInt(lesson.number, 10);
-    let status = 'locked'; // Default
-    if (lessonId <= lastCompletedId) {
-      status = 'completed';
-    } else if (lessonId === lastCompletedId + 1) {
-      // This is the next lesson
-      status = 'current';
-    }
-    return { ...lesson, status };
-  });
-  // ------------------------------------
+    return {
+      currentLesson: current,
+      completedLessons: completed,
+      upcomingLessons: upcoming,
+      totalScore: score,
+    };
+  }, [lessons]);
 
-  // The rest of the page just works with the new dynamic data
-  const currentLesson = LESSON_DATA.find((l) => l.status === 'current');
-  const completedLessons = LESSON_DATA.filter((l) => l.status === 'completed');
-  const upcomingLessons = LESSON_DATA.filter(
-    (l) => l.status !== 'current' && l.status !== 'completed'
-  );
-
-  const totalScore = completedLessons.reduce((sum, l) => sum + l.points, 0);
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#388e3c" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -164,7 +239,7 @@ export default function LessonsScreen() {
           <>
             <Text style={styles.sectionTitle}>UPCOMING LESSONS</Text>
             {upcomingLessons.map((lesson) => (
-              <LessonCard key={lesson.number} lesson={lesson} />
+              <LessonCard key={lesson.id} lesson={lesson} />
             ))}
           </>
         )}
@@ -175,11 +250,11 @@ export default function LessonsScreen() {
             <Text style={styles.sectionTitle}>RECENTLY COMPLETED LESSON</Text>
             <View style={styles.completedSectionHeader}>
               <MascotFarmer width={100} height={100} style={styles.farmerMascot} />
-              <Text style={styles.totalScore}>TOTALSCORE {totalScore}</Text>
+              <Text style={styles.totalScore}>TOTAL SCORE {totalScore}</Text>
             </View>
-            {/* Sort completed lessons in reverse order so latest is first */}
-            {completedLessons.sort((a, b) => parseInt(b.number) - parseInt(a.number)).map((lesson) => (
-              <LessonCard key={lesson.number} lesson={lesson} />
+            {/* Sort completed lessons in reverse sequence order so latest is first */}
+            {completedLessons.sort((a, b) => b.sequence - a.sequence).map((lesson) => (
+              <LessonCard key={lesson.id} lesson={lesson} />
             ))}
           </>
         )}
@@ -187,6 +262,8 @@ export default function LessonsScreen() {
     </SafeAreaView>
   );
 }
+
+// --- STYLES (Kept exactly as provided by the user) ---
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -197,6 +274,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingTop: 50,
     paddingBottom: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#151718',
   },
   currentSection: {
     flexDirection: 'row',
@@ -264,16 +347,13 @@ const styles = StyleSheet.create({
     borderColor: '#388E3C',
     paddingLeft: 20,
   },
-  // --- NEW PINK STYLE ---
   womenLessonCard: {
     backgroundColor: '#4A148C', // Dark Purple/Pink
     borderColor: '#C2185B', // Hot Pink Border
-    // Pink Glow
     shadowColor: '#C2185B',
     shadowOpacity: 0.7,
     shadowRadius: 10,
   },
-  // ----------------------
   lessonNumber: {
     color: '#555',
     fontSize: 80,

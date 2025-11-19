@@ -1,204 +1,242 @@
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
-// --- Mock Data for Lesson Details ---
-const LESSON_DETAILS: { [key: string]: any } = {
-  '1': {
-    title: 'Basics of Sustainable Banana Farming in Kerala',
-    summary:
-      'Hello friends! Today we will talk about sustainable farming — farming that does not harm our soil and water.\n\nIt means growing good crops today while also keeping our land healthy for tomorrow.\n\nWith sustainable farming, the soil stays healthy, water is saved, and we use fewer chemicals. This way, you can earn good profits every year.',
-    howTo: [
-      'Use cow dung manure and compost.',
-      'Rotate crops.',
-      'Save water with drip or sprinkler irrigation.',
-      'Plant trees and greenery around the fields.',
-    ],
-    conclusion:
-      'With sustainable farming, the land will stay happy, we will be happy, and so will our children.\nAny questions? Feel free to ask!',
-  },
-  '2': {
-    title: 'Healthy Soil for Better Plants',
-    summary: 'This is the summary for Lesson 2. It will teach you all about compost and healthy soil.',
-    howTo: ['Add banana waste to compost.', 'Mix it with dry leaves.', 'Wait 2 months.'],
-    conclusion: 'Now your soil is rich!',
-  },
-  // You can add entries for '3', '4', '5' here later
+// Import Supabase client
+import { supabase } from '../../utils/supabase';
+
+// Re-use coin icon for visual consistency
+import Coin from '../../assets/images/coin.svg';
+
+// --- TYPE DEFINITIONS ---
+
+interface LessonDetail {
+  id: number;
+  title: string;
+  sequence: number;
+  content: string; 
+  points: number;
+  theme: string | null;
+}
+
+// --- SUPABASE FUNCTIONS ---
+
+const fetchLessonById = async (lessonId: number): Promise<LessonDetail | null> => {
+  const { data, error } = await supabase
+    .from('lessons')
+    .select('id, title, sequence, content, points, theme')
+    .eq('id', lessonId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching lesson detail:', error.message);
+    return null;
+  }
+  return data as LessonDetail;
 };
-// -------------------------------------
 
-// A simple component for bullet points
-const BulletPoint = ({ text }: { text: string }) => (
-  <View style={styles.bulletContainer}>
-    <Text style={styles.bullet}>•</Text>
-    <Text style={styles.bulletText}>{text}</Text>
-  </View>
-);
 
+const markLessonComplete = async (lesson: LessonDetail): Promise<{success: boolean, sequence: number}> => {
+  // FIX: Use the correct asynchronous method to get the user ID
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+
+  if (!userId) {
+    Alert.alert('Authentication Error', 'You must be logged in to complete a lesson.');
+    return { success: false, sequence: lesson.sequence };
+  }
+
+  // Insert the completion record into the user_lessons table
+  const { error: insertError } = await supabase
+    .from('user_lessons')
+    .insert([
+      { 
+        user_id: userId, 
+        lesson_id: lesson.id, 
+        completed_at: new Date().toISOString() 
+      }
+    ])
+    .select()
+    .maybeSingle();
+
+  if (insertError) {
+    if (insertError.code === '23505') { 
+        console.log('Lesson already completed by user, continuing.');
+        return { success: true, sequence: lesson.sequence };
+    }
+    console.error('Error marking lesson complete:', insertError.message);
+    Alert.alert('Completion Error', 'Failed to save progress. Please try again.');
+    return { success: false, sequence: lesson.sequence };
+  }
+  
+  return { success: true, sequence: lesson.sequence };
+};
+
+
+// --- LESSON DETAIL SCREEN MAIN COMPONENT ---
 export default function LessonDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // Get the lesson data, or default to lesson 1 if ID is invalid
-  const lesson = LESSON_DETAILS[id] || LESSON_DETAILS['1'];
+  // Ensure 'id' is a number
+  const lessonId = parseInt(id || '0', 10);
+  
+  const [lesson, setLesson] = useState<LessonDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false); 
 
-  // --- THIS FUNCTION IS NOW UPDATED ---
-  const handleNext = () => {
-    // Navigate to the quiz page for the CURRENT lesson ID
-    router.push({
-      pathname: '/quiz/[id]',
-      params: { id: id },
-    });
+  // Fetch lesson data and check completion status when the screen loads
+  useEffect(() => {
+    if (lessonId > 0) {
+      const loadData = async () => {
+        setLoading(true);
+        const fetchedLesson = await fetchLessonById(lessonId);
+        setLesson(fetchedLesson);
+
+        if (fetchedLesson) {
+          // FIX: Safely retrieve userId for completion status check
+          const { data: sessionData } = await supabase.auth.getSession();
+          const userId = sessionData.session?.user.id;
+
+          if (userId) {
+            // Check if lesson is already completed
+            const { data, error } = await supabase
+              .from('user_lessons')
+              .select('id')
+              .eq('user_id', userId) 
+              .eq('lesson_id', lessonId)
+              .maybeSingle();
+              
+            if (data) setIsCompleted(true);
+          }
+        }
+
+        setLoading(false);
+      };
+      loadData();
+    } else {
+      setLoading(false);
+      Alert.alert('Error', 'Invalid lesson ID.');
+      router.back();
+    }
+  }, [lessonId]);
+
+
+  const handleMarkComplete = async () => {
+    if (!lesson || isCompleting) return;
+    setIsCompleting(true);
+
+    const { success, sequence } = await markLessonComplete(lesson);
+
+    setIsCompleting(false);
+
+    if (success) {
+      setIsCompleted(true);
+      Alert.alert('Success!', `Lesson ${sequence} completed. ${lesson.points} points earned!`, [
+        {
+          text: 'Continue',
+          onPress: () => router.replace({
+            pathname: '/lessons',
+            params: { lesson_completed: sequence.toString() } 
+          })
+        }
+      ]);
+    } else {
+      // Error handled inside markLessonComplete
+    }
   };
+
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#388e3c" />
+      </View>
+    );
+  }
+
+  if (!lesson) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>Lesson not found.</Text>
+      </View>
+    );
+  }
+
+  const completeButtonTitle = isCompleted 
+    ? 'COMPLETED (GO BACK)' 
+    : isCompleting 
+    ? 'COMPLETING...' 
+    : `MARK AS COMPLETE (+${lesson.points} POINTS)`;
+
+  const completeButtonStyle = isCompleted
+    ? styles.completeButtonCompleted
+    : styles.completeButton;
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.lessonNumber}>{id}</Text>
-            <Text style={styles.lessonTitle}>{lesson.title}</Text>
-          </View>
+        <Text style={styles.sequenceTitle}>Lesson {lesson.sequence}</Text>
+        <Text style={styles.mainTitle}>{lesson.title}</Text>
 
-          {/* Video Player Placeholder */}
-          <View style={styles.videoPlayer}>
-            <View style={styles.playButton} />
-          </View>
-
-          {/* Summary Text */}
-          <Text style={styles.summaryText}>{lesson.summary}</Text>
-
-          {/* How to do it */}
-          <Text style={styles.howToTitle}>How to do it?</Text>
-          {lesson.howTo.map((point: string, index: number) => (
-            <BulletPoint key={index} text={point} />
-          ))}
-
-          {/* Conclusion */}
-          <Text style={styles.summaryText}>{lesson.conclusion}</Text>
+        <View style={styles.pointsHeader}>
+            <Coin width={30} height={30} style={styles.coinIcon} />
+            <Text style={styles.pointsText}>{lesson.points} Points Available</Text>
+        </View>
+        
+        <View style={styles.contentBox}>
+            <Text style={styles.contentTitle}>THE CORE CONCEPT:</Text>
+            <Text style={styles.contentText}>
+                {lesson.content || "Placeholder content. Content is missing in the Supabase 'lessons' table."}
+            </Text>
         </View>
 
-        {/* Next Button (onPress now goes to quiz) */}
-        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-          <Text style={styles.nextButtonText}>&gt;</Text>
+        <TouchableOpacity
+          style={completeButtonStyle}
+          onPress={isCompleted ? router.back : handleMarkComplete}
+          disabled={isCompleting}>
+          <Text style={styles.completeButtonText}>{completeButtonTitle}</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>← BACK TO ALL LESSONS</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// Styles are the same as before
+// --- STYLES (Unchanged from previous versions) ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#151718',
-  },
-  container: {
-    padding: 15,
-  },
-  card: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  lessonNumber: {
-    color: '#FFFFFF',
-    fontSize: 80,
-    fontWeight: '900',
-    fontFamily: 'monospace', // Blocky/Pixel font
-    marginRight: 15,
-    lineHeight: 80,
-  },
-  lessonTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  videoPlayer: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#388e3c',
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  playButton: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 30,
-    borderTopWidth: 20,
-    borderBottomWidth: 20,
-    borderLeftColor: 'rgba(255, 255, 255, 0.9)',
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    marginLeft: 5,
-  },
-  summaryText: {
-    color: '#B0B0B0',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  howToTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  bulletContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  bullet: {
-    color: '#B0B0B0',
-    fontSize: 18,
-    marginRight: 10,
-    lineHeight: 22,
-  },
-  bulletText: {
-    color: '#B0B0B0',
-    fontSize: 15,
-    lineHeight: 22,
-    flex: 1,
-  },
-  nextButton: {
-    backgroundColor: '#388e3c',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-    marginTop: 20,
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-  },
-  nextButtonText: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '900', // Bolder
-    fontFamily: 'monospace', // Blocky/Pixel font
-    lineHeight: 60,
-    transform: [{ translateX: 2 }],
-  },
+  safeArea: { flex: 1, backgroundColor: '#151718' },
+  container: { paddingHorizontal: 20, paddingVertical: 30 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' },
+  errorText: { color: '#FF4444', fontSize: 18 },
+  sequenceTitle: { color: '#388e3c', fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
+  mainTitle: { color: '#FFFFFF', fontSize: 32, fontWeight: 'bold', marginBottom: 20 },
+  pointsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 30, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#333333' },
+  coinIcon: { marginRight: 10 },
+  pointsText: { color: '#FDD835', fontSize: 20, fontWeight: 'bold' },
+  contentBox: { backgroundColor: '#2C2C2E', borderRadius: 15, padding: 20, marginBottom: 40 },
+  contentTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#444444', paddingBottom: 5 },
+  contentText: { color: '#B0B0B0', fontSize: 16, lineHeight: 24 },
+  completeButton: { width: '100%', paddingVertical: 18, borderRadius: 30, backgroundColor: '#388e3c', marginBottom: 15 },
+  completeButtonCompleted: { width: '100%', paddingVertical: 18, borderRadius: 30, backgroundColor: '#555', marginBottom: 15 },
+  completeButtonText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  backButton: { marginTop: 10, alignSelf: 'center' },
+  backButtonText: { color: '#B0B0B0', fontSize: 14, textDecorationLine: 'underline' }
 });

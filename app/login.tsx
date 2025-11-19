@@ -4,26 +4,58 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from 'react-native';
 
-// Import the SVG with the correct name
+// 1. IMPORT SUPABASE CLIENT (Adjust the path as necessary)
 import UserIcon from '../assets/images/user.svg';
+import { supabase } from '../utils/supabase';
+
+// --- PROFILE UPSERT FUNCTION (Backend Logic) ---
+const upsertProfile = async (
+  userId: string,
+  fullName: string,
+  mobileNo: string,
+  agriStackId: string
+) => {
+  const { error } = await supabase.from('profiles').upsert(
+    {
+      id: userId,
+      full_name: fullName,
+      mobile_no: mobileNo,
+      agristack_id: agriStackId,
+    },
+    { onConflict: 'id' }
+  );
+
+  if (error) {
+    console.error('Error upserting profile:', error);
+    return false;
+  }
+  return true;
+};
+
 
 // --- OTP OVERLAY COMPONENT ---
 interface OtpOverlayProps {
-  onConfirm: () => void; 
+  onConfirm: (code: string) => void;
   onClose: () => void;
   mobileNo: string;
+  onResend: () => void;
 }
 
-const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo }) => {
+const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo, onResend }) => {
   const [otp, setOtp] = useState<string[]>(['', '', '', '']);
   const [timer, setTimer] = useState(30);
+  const [isResending, setIsResending] = useState(false);
+  // FIX: Explicitly type inputRefs for better type safety
   const inputRefs = useRef<TextInput[]>([]);
 
   useEffect(() => {
@@ -41,21 +73,24 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo })
       inputRefs.current[index + 1]?.focus();
     }
   };
-  
-  const handleResendOtp = () => {
-      if (timer === 0) {
-          console.log(`Resending OTP to ${mobileNo}...`);
-          setTimer(30); // Reset timer
-      }
+
+  const handleResendOtp = async () => {
+    if (timer === 0 && !isResending) {
+      setIsResending(true);
+      await onResend();
+      setIsResending(false);
+      setTimer(30);
+    }
   };
-  
+
   const isOtpComplete = otp.every(digit => digit.length === 1);
+  const resendDisabled = timer !== 0 || isResending;
 
   return (
     <View style={overlayStyles.fullScreenOverlay}>
       <View style={overlayStyles.otpBox}>
         <TouchableOpacity style={overlayStyles.closeButton} onPress={onClose}>
-            <Text style={overlayStyles.closeText}>X</Text>
+          <Text style={overlayStyles.closeText}>X</Text>
         </TouchableOpacity>
         <Text style={overlayStyles.enterOtpText}>ENTER OTP</Text>
         <View style={overlayStyles.otpInputContainer}>
@@ -64,19 +99,22 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo })
               key={index}
               ref={(el) => {
                 if (el) {
+                  // FIX: Handle ref assignment for the array of TextInput elements
                   inputRefs.current[index] = el;
                 }
               }}
-              style={overlayStyles.otpInput}
+              // FIX: The error "Type 'ViewStyle' is not assignable to type 'StyleProp<TextStyle>'" 
+              // on TextInput is resolved by defining the style with both types below.
+              style={overlayStyles.otpInput as StyleProp<TextStyle>} 
               value={digit}
               onChangeText={(text) => handleOtpChange(text.slice(-1), index)}
               keyboardType="numeric"
               maxLength={1}
               autoFocus={index === 0}
               onKeyPress={({ nativeEvent }) => {
-                  if (nativeEvent.key === 'Backspace' && digit === '' && index > 0) {
-                      inputRefs.current[index - 1]?.focus();
-                  }
+                if (nativeEvent.key === 'Backspace' && digit === '' && index > 0) {
+                  inputRefs.current[index - 1]?.focus();
+                }
               }}
             />
           ))}
@@ -87,13 +125,16 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo })
             isOtpComplete ? overlayStyles.confirmButtonActive : overlayStyles.confirmButtonDisabled,
           ]}
           disabled={!isOtpComplete}
-          onPress={onConfirm}>
+          onPress={() => onConfirm(otp.join(''))}>
           <Text style={overlayStyles.confirmButtonText}>CONFIRM</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleResendOtp} disabled={timer !== 0}>
-            <Text style={overlayStyles.resendText}>
-                RESEND OTP? {timer > 0 ? `${timer}SEC` : 'RESEND'}
-            </Text>
+        <TouchableOpacity onPress={handleResendOtp} disabled={resendDisabled}>
+          <Text style={[
+            overlayStyles.resendText,
+            resendDisabled && { opacity: 0.5 }
+          ]}>
+            {isResending ? 'SENDING...' : `RESEND OTP? ${timer > 0 ? `${timer}SEC` : 'RESEND'}`}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -105,55 +146,115 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo })
 // --- LOGIN SCREEN MAIN COMPONENT ---
 export default function LoginScreen() {
   const router = useRouter();
-  // Read the lesson ID that was passed from the reward page
   const { lesson_completed } = useLocalSearchParams<{ lesson_completed?: string }>();
 
   const [fullName, setFullName] = useState('');
   const [mobileNo, setMobileNo] = useState('');
   const [agriStackId, setAgriStackId] = useState('');
   const [showOtpOverlay, setShowOtpOverlay] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendOTP = () => {
-    if (mobileNo.length === 10) {
-        // Mock sending OTP
-        console.log('Sending OTP (Mock)...');
-        setShowOtpOverlay(true); 
+  const phoneNoWithCode = '+91' + mobileNo;
+
+  // 1. Handle Sending OTP via Supabase
+  const handleSendOTP = async () => {
+    if (mobileNo.length === 10 && !isLoading) {
+      setIsLoading(true);
+      console.log('Sending OTP via Supabase...');
+
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNoWithCode,
+      });
+
+      setIsLoading(false);
+
+      if (error) {
+        console.error('Error sending OTP:', error.message);
+        Alert.alert('Error', error.message);
+      } else {
+        setShowOtpOverlay(true);
+      }
     } else {
-        Alert.alert('Invalid Phone', 'Please enter a valid 10-digit mobile number');
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit mobile number');
     }
   };
 
-  const handleConfirmLogin = () => {
-    console.log('Logging in...');
-    // Pass the lesson_completed ID forward to the lessons page!
-    router.replace({
-      pathname: '/lessons',
-      params: { lesson_completed: lesson_completed } 
-    }); 
-  };
-  
-  const handleOtpConfirmation = () => {
-      // Mock verifying OTP
-      console.log('OTP Verified (Mock)');
-      setShowOtpOverlay(false); 
-      handleConfirmLogin(); 
+  // 2. Handle Confirming OTP and Profile Upsert
+  const handleOtpConfirmation = async (code: string) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    console.log('Verifying OTP:', code);
+
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      phone: phoneNoWithCode,
+      token: code,
+      type: 'sms',
+    });
+
+    if (verifyError) {
+      setIsLoading(false);
+      console.error('Invalid OTP:', verifyError.message);
+      Alert.alert('Error', 'Invalid OTP, please try again.');
+      return;
+    }
+
+    if (data.session && data.user) {
+      const profileSuccess = await upsertProfile(
+        data.user.id,
+        fullName,
+        mobileNo,
+        agriStackId
+      );
+
+      setIsLoading(false);
+      setShowOtpOverlay(false);
+
+      if (profileSuccess) {
+        console.log('Login and Profile Update successful!');
+        router.replace({
+          pathname: '/lessons',
+          params: { lesson_completed: lesson_completed }
+        });
+      } else {
+        Alert.alert('Error', 'Login successful, but failed to save profile data. Please try again.');
+      }
+    } else {
+        setIsLoading(false);
+        Alert.alert('Error', 'Authentication failed unexpectedly.');
+    }
   };
 
-  const isSendOtpActive = mobileNo.length === 10;
-  const isFinalConfirmActive = false; 
+  const handleResendOTPFromOverlay = async () => {
+    const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNoWithCode,
+    });
+
+    if (error) {
+        console.error('Resend Error:', error.message);
+        Alert.alert('Resend Error', error.message);
+    } else {
+        Alert.alert('Success', 'New OTP sent!');
+    }
+  }
+
+  const handleConfirmLogin = () => { /* No logic here */ };
+
+  const isSendOtpActive = mobileNo.length === 10 && !isLoading;
+  const isFinalConfirmActive = false;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>LOGIN</Text>
-        
+
         <View style={styles.avatarContainer}>
-          <UserIcon width={100} height={100} /> 
+          <UserIcon width={100} height={100} />
         </View>
 
         <Text style={styles.inputLabel}>FULL NAME</Text>
         <TextInput
-          style={styles.input}
+          // FIX: style needs to be explicitly cast to StyleProp<TextStyle> for TextInput
+          style={styles.input as StyleProp<TextStyle>} 
           placeholder="Enter your Full name"
           placeholderTextColor="#A0A0A0"
           value={fullName}
@@ -162,7 +263,7 @@ export default function LoginScreen() {
 
         <Text style={styles.inputLabel}>MOBILE NO.</Text>
         <TextInput
-          style={styles.input}
+          style={styles.input as StyleProp<TextStyle>}
           placeholder="Enter your phone no."
           placeholderTextColor="#A0A0A0"
           keyboardType="numeric"
@@ -173,21 +274,23 @@ export default function LoginScreen() {
 
         <Text style={styles.inputLabel}>AGRISTACK ID</Text>
         <TextInput
-          style={styles.input}
+          style={styles.input as StyleProp<TextStyle>}
           placeholder="Enter your agristack id"
           placeholderTextColor="#A0A0A0"
           value={agriStackId}
           onChangeText={setAgriStackId}
         />
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.sendOtpButton,
             isSendOtpActive ? styles.sendOtpButtonActive : styles.sendOtpButtonDisabled,
           ]}
           disabled={!isSendOtpActive}
           onPress={handleSendOTP}>
-          <Text style={styles.sendOtpButtonText}>SEND OTP</Text>
+          <Text style={styles.sendOtpButtonText}>
+            {isLoading && !showOtpOverlay ? 'SENDING...' : 'SEND OTP'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.accountLinkContainer}>
@@ -202,28 +305,55 @@ export default function LoginScreen() {
         <TouchableOpacity
           style={[
             styles.confirmButton,
-            isFinalConfirmActive ? styles.confirmButtonActive : styles.confirmButtonDisabled,
+            styles.confirmButtonDisabled,
           ]}
-          disabled={!isFinalConfirmActive}
+          disabled={true}
           onPress={handleConfirmLogin}>
           <Text style={styles.confirmButtonText}>CONFIRM</Text>
         </TouchableOpacity>
-        
+
       </ScrollView>
-      
+
       {showOtpOverlay && (
-        <OtpOverlay 
-            onConfirm={handleOtpConfirmation} 
-            onClose={() => setShowOtpOverlay(false)} 
-            mobileNo={mobileNo}
+        <OtpOverlay
+          onConfirm={handleOtpConfirmation}
+          onClose={() => setShowOtpOverlay(false)}
+          mobileNo={mobileNo}
+          onResend={handleResendOTPFromOverlay}
         />
       )}
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
-const styles = StyleSheet.create({
+// --- TYPE DEFINITIONS AND STYLES ---
+
+// We define a joint type for styles that must satisfy both View and Text properties (like TextInput)
+type ViewAndTextStyle = ViewStyle & TextStyle;
+
+interface LoginStyles {
+  safeArea: ViewStyle;
+  container: ViewStyle;
+  title: TextStyle;
+  avatarContainer: ViewStyle;
+  inputLabel: TextStyle;
+  // FIX: Using ViewAndTextStyle for the input style
+  input: ViewAndTextStyle; 
+  sendOtpButton: ViewStyle;
+  sendOtpButtonActive: ViewStyle;
+  sendOtpButtonDisabled: ViewStyle;
+  sendOtpButtonText: TextStyle;
+  accountLinkContainer: ViewStyle;
+  accountLinkText: TextStyle;
+  createOneText: TextStyle;
+  dataNote: TextStyle;
+  confirmButton: ViewStyle;
+  confirmButtonDisabled: ViewStyle;
+  confirmButtonActive: ViewStyle;
+  confirmButtonText: TextStyle;
+}
+
+const styles = StyleSheet.create<LoginStyles>({
   safeArea: {
     flex: 1,
     backgroundColor: '#151718',
@@ -256,15 +386,17 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   input: {
+    // ViewStyle properties
     width: '100%',
     backgroundColor: '#333333',
-    color: '#FFFFFF',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 30,
-    fontSize: 16,
     borderWidth: 1,
     borderColor: '#444444',
+    // TextStyle properties
+    color: '#FFFFFF', 
+    fontSize: 16,
   },
   sendOtpButton: {
     width: '100%',
@@ -324,85 +456,103 @@ const styles = StyleSheet.create({
   },
 });
 
-const overlayStyles = StyleSheet.create({
-    fullScreenOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)', 
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10, 
-    },
-    otpBox: {
-        width: '85%',
-        maxWidth: 350,
-        backgroundColor: '#333333',
-        borderRadius: 20,
-        padding: 30,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#444444',
-    },
-    closeButton: {
-        position: 'absolute',
-        top: 15,
-        right: 15,
-        padding: 5,
-    },
-    closeText: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    enterOtpText: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 30,
-        marginTop: 10,
-        letterSpacing: 1.5,
-        borderBottomWidth: 2,
-        borderColor: '#FFFFFF',
-        paddingBottom: 5,
-    },
-    otpInputContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        marginBottom: 25,
-    },
-    otpInput: {
-        width: 50,
-        height: 50,
-        backgroundColor: '#151718',
-        borderRadius: 10,
-        color: '#FFFFFF',
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        borderWidth: 1,
-        borderColor: '#555555',
-    },
-    confirmButton: {
-        width: '70%',
-        paddingVertical: 12,
-        borderRadius: 30,
-        marginBottom: 15,
-    },
-    confirmButtonDisabled: {
-        backgroundColor: '#555555',
-    },
-    confirmButtonActive: {
-        backgroundColor: '#388e3c',
-    },
-    confirmButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    resendText: {
-        color: '#FDD835',
-        fontSize: 14,
-        fontWeight: '500',
-    },
+interface OverlayStyles {
+  fullScreenOverlay: ViewStyle;
+  otpBox: ViewStyle;
+  closeButton: ViewStyle;
+  closeText: TextStyle;
+  enterOtpText: TextStyle;
+  otpInputContainer: ViewStyle;
+  // FIX: Using ViewAndTextStyle for the otpInput style
+  otpInput: ViewAndTextStyle; 
+  confirmButton: ViewStyle;
+  confirmButtonDisabled: ViewStyle;
+  confirmButtonActive: ViewStyle;
+  confirmButtonText: TextStyle;
+  resendText: TextStyle;
+}
+
+const overlayStyles = StyleSheet.create<OverlayStyles>({
+  fullScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  otpBox: {
+    width: '85%',
+    maxWidth: 350,
+    backgroundColor: '#333333',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444444',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    padding: 5,
+  },
+  closeText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  enterOtpText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 30,
+    marginTop: 10,
+    letterSpacing: 1.5,
+    borderBottomWidth: 2,
+    borderColor: '#FFFFFF',
+    paddingBottom: 5,
+  },
+  otpInputContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 25,
+  },
+  otpInput: {
+    // ViewStyle properties
+    width: 50,
+    height: 50,
+    backgroundColor: '#151718',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#555555',
+    // TextStyle properties
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  confirmButton: {
+    width: '70%',
+    paddingVertical: 12,
+    borderRadius: 30,
+    marginBottom: 15,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#555555',
+  },
+  confirmButtonActive: {
+    backgroundColor: '#388e3c',
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  resendText: {
+    color: '#FDD835',
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });

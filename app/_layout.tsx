@@ -1,7 +1,11 @@
 import { FontAwesome5 } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+
+// --- IMPORT SUPABASE CLIENT (Adjust the path as necessary)
+import { supabase } from '../utils/supabase';
 
 // --- FUNCTIONS FOR THE CONSISTENT APP HEADER ---
 
@@ -18,6 +22,8 @@ function AppHeaderLeft() {
 // Logo (for all screens)
 function AppHeaderRight() {
   const router = useRouter();
+  // Note: Assuming '/dashboard' is the authenticated home screen.
+  // We navigate to it on logo press.
   return (
     <TouchableOpacity onPress={() => router.push('/dashboard')}>
       <Image
@@ -28,8 +34,65 @@ function AppHeaderRight() {
   );
 }
 
-// --- LAYOUT FILE ---
+// --- GLOBAL LAYOUT COMPONENT (Integrated Auth Guard) ---
 export default function AppLayout() {
+  const [session, setSession] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const segments = useSegments();
+
+  // --- Supabase Authentication Listener ---
+  useEffect(() => {
+    // 1. Initial Check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    // 2. Real-time Listener for auth state changes (login/logout)
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // --- Routing Logic (Auth Guard) ---
+  useEffect(() => {
+    if (isLoading) return;
+
+    const isLoginPage = segments[0] === 'login';
+
+    if (session) {
+      // User is logged in
+      if (isLoginPage) {
+        // Redirect away from login to lessons/dashboard
+        router.replace('/lessons');
+      }
+    } else {
+      // User is NOT logged in
+      if (!isLoginPage) {
+        // Redirect to login if they try to access a protected route
+        router.replace('/login');
+      }
+    }
+  }, [session, isLoading, segments]);
+
+
+  if (isLoading) {
+    // Show loading while session check is in progress
+    return (
+      <View style={layoutStyles.loadingContainer}>
+        <ActivityIndicator size="large" color="#388e3c" />
+      </View>
+    );
+  }
+
+
   return (
     <>
       <Stack
@@ -78,6 +141,7 @@ export default function AppLayout() {
         
         {/* --- POST-LOGIN SCREENS --- */}
         {/* These screens HAVE the profile icon */}
+        {/* Conditional rendering could be used here, but keeping it simple with fixed components */}
         <Stack.Screen
           name="dashboard"
           options={{
@@ -194,4 +258,13 @@ const styles = StyleSheet.create({
   profileIcon: {
     marginLeft: 15,
   },
+});
+
+const layoutStyles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#151718' 
+    }
 });

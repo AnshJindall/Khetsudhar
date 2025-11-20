@@ -1,17 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  SafeAreaView,
-  ScrollView,
-  StyleProp,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextStyle,
-  TouchableOpacity,
-  View,
-  ViewStyle,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleProp,
+    StyleSheet,
+    Text,
+    TextInput,
+    TextStyle,
+    TouchableOpacity,
+    View,
+    ViewStyle,
 } from 'react-native';
 
 import { supabase } from '@/utils/supabase';
@@ -42,7 +42,7 @@ const upsertProfile = async (
 };
 
 
-// --- OTP OVERLAY COMPONENT (unchanged) ---
+// --- OTP OVERLAY COMPONENT (UPDATED FOR 6 DIGITS) ---
 interface OtpOverlayProps {
   onConfirm: (code: string) => void;
   onClose: () => void;
@@ -51,10 +51,12 @@ interface OtpOverlayProps {
 }
 
 const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo, onResend }) => {
+  // CHANGE 1: Initialize state with 6 empty strings instead of 4
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(30);
   const [isResending, setIsResending] = useState(false);
   
+  // We need refs for 6 inputs
   const inputRefs = useRef<TextInput[]>([]);
 
   useEffect(() => {
@@ -69,6 +71,7 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo, o
     newOtp[index] = text;
     setOtp(newOtp);
     
+    // CHANGE 2: Update auto-focus logic for 6 inputs (index < 5)
     if (text.length === 1 && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -77,10 +80,9 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo, o
   const handleResendOtp = async () => {
     if (timer === 0 && !isResending) {
       setIsResending(true);
-      await onResend(); 
+      await onResend();
       setIsResending(false);
       setTimer(30);
-      Alert.alert('Success', 'New OTP sent!');
     }
   };
 
@@ -142,8 +144,8 @@ const OtpOverlay: React.FC<OtpOverlayProps> = ({ onConfirm, onClose, mobileNo, o
   );
 };
 
-// --- SIGN UP SCREEN MAIN COMPONENT (saved as app/login.tsx) ---
-export default function SignupScreen() { 
+// --- LOGIN SCREEN MAIN COMPONENT ---
+export default function LoginScreen() {
   const router = useRouter();
   const { lesson_completed } = useLocalSearchParams<{ lesson_completed?: string }>();
 
@@ -155,48 +157,24 @@ export default function SignupScreen() {
 
   const phoneNoWithCode = '+91' + mobileNo;
 
-  // Handle Registration and Sending OTP
-  const handleRegisterAndSendOTP = async () => {
-    if (mobileNo.length === 10 && fullName.trim() !== '' && !isLoading) {
+  // Handle Sending OTP
+  const handleSendOTP = async () => {
+    if (mobileNo.length === 10 && !isLoading) {
       setIsLoading(true);
       
-      // *** FINAL FIX: Use @ts-ignore to bypass the strict TypeScript check ***
-      // This is necessary because your local types are conflicting with the 
-      // correct runtime function overload for phone sign-up.
-      // @ts-ignore 
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signInWithOtp({
         phone: phoneNoWithCode,
-        options: {
-            data: {
-                full_name: fullName,
-                agristack_id: agriStackId,
-            },
-            channel: 'sms',
-        }
       });
 
       setIsLoading(false);
 
       if (error) {
-        if (error.message.includes('User already registered')) {
-            Alert.alert('Registration Failed', 'This mobile number is already registered. Please log in instead.');
-        } else {
-            Alert.alert('Error', error.message);
-        }
-      } else if (data.user) {
-         await upsertProfile(
-            data.user.id,
-            fullName,
-            mobileNo,
-            agriStackId
-         );
-        
-        setShowOtpOverlay(true); 
+        Alert.alert('Error', error.message);
       } else {
-        Alert.alert('Error', 'Registration failed unexpectedly.');
+        setShowOtpOverlay(true);
       }
     } else {
-      Alert.alert('Missing Data', 'Please enter your Full Name and a valid 10-digit mobile number.');
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit mobile number');
     }
   };
 
@@ -208,7 +186,7 @@ export default function SignupScreen() {
     const { data, error: verifyError } = await supabase.auth.verifyOtp({
       phone: phoneNoWithCode,
       token: code,
-      type: 'sms', 
+      type: 'sms',
     });
 
     if (verifyError) {
@@ -218,6 +196,7 @@ export default function SignupScreen() {
     }
 
     if (data.session && data.user) {
+      // Save profile data if this is a new user or update if existing
       await upsertProfile(
         data.user.id,
         fullName,
@@ -228,8 +207,9 @@ export default function SignupScreen() {
       setIsLoading(false);
       setShowOtpOverlay(false);
 
+      // Navigate based on where they came from
       router.replace({
-        pathname: './lessons',
+        pathname: '/lessons',
         params: { lesson_completed: lesson_completed }
       });
     } else {
@@ -237,8 +217,7 @@ export default function SignupScreen() {
         Alert.alert('Error', 'Authentication failed unexpectedly.');
     }
   };
-  
-  // Resend logic: use signInWithOtp
+
   const handleResendOTPFromOverlay = async () => {
     const { error } = await supabase.auth.signInWithOtp({
         phone: phoneNoWithCode,
@@ -246,15 +225,19 @@ export default function SignupScreen() {
 
     if (error) {
         Alert.alert('Resend Error', error.message);
-    } 
+    } else {
+        Alert.alert('Success', 'New OTP sent!');
+    }
   }
 
-  const isRegisterActive = mobileNo.length === 10 && fullName.trim() !== '' && !isLoading;
+  const handleConfirmLogin = () => { /* Placeholder */ };
+
+  const isSendOtpActive = mobileNo.length === 10 && !isLoading;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>SIGN UP</Text> 
+        <Text style={styles.title}>LOGIN</Text>
 
         <View style={styles.avatarContainer}>
           <UserIcon width={100} height={100} />
@@ -292,21 +275,28 @@ export default function SignupScreen() {
         <TouchableOpacity
           style={[
             styles.sendOtpButton,
-            isRegisterActive ? styles.sendOtpButtonActive : styles.sendOtpButtonDisabled,
+            isSendOtpActive ? styles.sendOtpButtonActive : styles.sendOtpButtonDisabled,
           ]}
-          disabled={!isRegisterActive}
-          onPress={handleRegisterAndSendOTP}>
+          disabled={!isSendOtpActive}
+          onPress={handleSendOTP}>
           <Text style={styles.sendOtpButtonText}>
-            {isLoading && !showOtpOverlay ? 'REGISTERING...' : 'REGISTER & SEND OTP'}
+            {isLoading && !showOtpOverlay ? 'SENDING...' : 'SEND OTP'}
           </Text>
         </TouchableOpacity>
 
         <View style={styles.accountLinkContainer}>
-          <Text style={styles.accountLinkText}>Already have an account?</Text> 
-          <TouchableOpacity onPress={() => router.replace('/signup')}><Text style={styles.createOneText}>Login</Text></TouchableOpacity>
+          <Text style={styles.accountLinkText}>Don't have an account?</Text>
+          <TouchableOpacity><Text style={styles.createOneText}>Create one</Text></TouchableOpacity>
         </View>
 
         <Text style={styles.dataNote}>DATA AS PER FARMER REGISTRY 2025</Text>
+
+        <TouchableOpacity
+          style={[styles.confirmButton, styles.confirmButtonDisabled]}
+          disabled={true}
+          onPress={handleConfirmLogin}>
+          <Text style={styles.confirmButtonText}>CONFIRM</Text>
+        </TouchableOpacity>
 
       </ScrollView>
 
@@ -322,7 +312,7 @@ export default function SignupScreen() {
   );
 }
 
-// --- STYLES (UNCHANGED) ---
+// --- STYLES ---
 
 type ViewAndTextStyle = ViewStyle & TextStyle;
 
@@ -390,8 +380,10 @@ const overlayStyles = StyleSheet.create<OverlayStyles>({
   closeText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' },
   enterOtpText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', marginBottom: 20, marginTop: 10, letterSpacing: 1.5, borderBottomWidth: 2, borderColor: '#FFFFFF', paddingBottom: 5 },
   
+  // CHANGE 3: Adjusted container to fit 6 boxes
   otpInputContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 25, gap: 8 },
   
+  // CHANGE 4: Made boxes slightly smaller to fit 6 in a row
   otpInput: { width: 40, height: 50, backgroundColor: '#151718', borderRadius: 8, borderWidth: 1, borderColor: '#555555', color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
   
   confirmButton: { width: '80%', paddingVertical: 12, borderRadius: 30, marginBottom: 15 },

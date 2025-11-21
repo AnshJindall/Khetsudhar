@@ -46,16 +46,44 @@ const markLessonComplete = async (lesson: LessonDetail): Promise<{success: boole
     return { success: true, sequence: lesson.sequence };
   }
 
-  const { error } = await supabase
+  // 1. Insert into user_lessons (Mark as Done)
+  const { error: insertError } = await supabase
     .from('user_lessons')
     .insert([{ user_id: userId, lesson_id: lesson.id, completed_at: new Date().toISOString() }])
     .select()
     .maybeSingle();
 
-  if (error && error.code !== '23505') {
+  // 2. Handle Errors (Ignore duplicate key error 23505 if already completed)
+  if (insertError) {
+    if (insertError.code === '23505') {
+      // Already completed, just return success without adding points again
+      return { success: true, sequence: lesson.sequence };
+    }
     Alert.alert('Error', 'Failed to save progress.');
     return { success: false, sequence: lesson.sequence };
   }
+
+  // 3. AWARD COINS (Only if this is the first time completing it - i.e. no insertError)
+  // A. Get current balance
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('coins, xp')
+    .eq('id', userId)
+    .single();
+
+  if (profile) {
+    const newCoins = (profile.coins || 0) + lesson.points;
+    const newXp = (profile.xp || 0) + lesson.points; // Assuming points = XP
+
+    // B. Update profile
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ coins: newCoins, xp: newXp })
+      .eq('id', userId);
+      
+    if (updateError) console.error("Error awarding coins:", updateError);
+  }
+
   return { success: true, sequence: lesson.sequence };
 };
 

@@ -1,13 +1,14 @@
+import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Image,
-  TouchableOpacity,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 // Define the crop data
@@ -26,11 +27,21 @@ export default function CropScreen() {
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleConfirm = () => {
+const handleConfirm = async () => { // Make async
     if (selectedCrop) {
-      // UPDATED THIS LINE:
-      router.push('/lessons'); // Navigate to the new lessons screen
-      console.log('Selected Crop:', selectedCrop);
+      // 2. Save crop to DB
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ selected_crop: selectedCrop }) // Ensure column exists in DB
+          .eq('id', session.user.id);
+
+        if (error) console.error('Error saving crop:', error);
+      }
+
+      router.push('/lessons'); 
     }
   };
 

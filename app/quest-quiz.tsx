@@ -11,6 +11,11 @@ import {
     View,
 } from 'react-native';
 
+import { supabase } from '@/utils/supabase';
+
+// --- Import QCoin Icon ---
+import QCoin from '../assets/images/Qcoin.svg';
+
 const PIXEL_FONT = 'monospace';
 
 // --- Quiz Data ---
@@ -18,12 +23,12 @@ const QUIZ_DATA = {
     question: 'What changes did you notice in the soil condition after adding compost or farmyard manure?', 
     options: [
         { id: 'a', text: 'Increased soil compaction and runoff' },
-        { id: 'b', text: 'Improved soil structure, aeration, and water retention' }, // Correct Answer
+        { id: 'b', text: 'Improved soil structure, aeration, and water retention' }, // Correct
         { id: 'c', text: 'Reduced nutrient availability and microbial activity' },
         { id: 'd', text: 'A rapid decrease in soil pH (more acidic)' },
     ],
     correctAnswerId: 'b',
-    xpReward: 1500,
+    rewardAmount: 1, // 1 Quest Coin
 };
 
 export default function QuizScreen() {
@@ -38,47 +43,62 @@ export default function QuizScreen() {
         }
     };
 
- const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!selectedAnswer) return;
 
         const correct = selectedAnswer === QUIZ_DATA.correctAnswerId;
         setIsCorrect(correct);
         setIsAnswerSubmitted(true);
 
-        // Logic from the nested function has been moved here
         if (correct) {
-            // FIX: Navigate to the quest completion screen
+            // --- AWARD QUEST COINS ---
+            try {
+                const { data: sessionData } = await supabase.auth.getSession();
+                if (sessionData?.session?.user) {
+                    const userId = sessionData.session.user.id;
+                    
+                    // 1. Get Current Profile
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('quest_coins')
+                        .eq('id', userId)
+                        .single();
+                    
+                    if (profile) {
+                        // 2. Add Reward (Quest Coins)
+                        const newQuestCoins = (profile.quest_coins || 0) + QUIZ_DATA.rewardAmount;
+
+                        // 3. Update Database
+                        await supabase
+                            .from('profiles')
+                            .update({ quest_coins: newQuestCoins })
+                            .eq('id', userId);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to reward user:", error);
+            }
+            
             setTimeout(() => {
-                router.push('/quest-complete'); // Navigate on success
+                // Go to Quest Complete (You might want to update that file to show QCoins too)
+                router.push('/quest-complete');
             }, 2000);
         }
-    }; // <-- End of the *correct* function
+    };
 
-    // Logic to reset the quiz for 'Try Again'
     const handleTryAgain = () => {
         setSelectedAnswer(null);
         setIsAnswerSubmitted(false);
         setIsCorrect(false);
     };
+
     const getOptionStyle = (id: string) => {
         if (!isAnswerSubmitted) {
             return id === selectedAnswer ? styles.optionSelected : styles.optionDefault;
         }
-
-        // After submission:
-        if (id === QUIZ_DATA.correctAnswerId) {
-            return styles.optionCorrect; // Correct answer is always green
-        }
-        if (id === selectedAnswer && !isCorrect) {
-            return styles.optionIncorrect; // User's wrong answer is red
-        }
-        return styles.optionDefault; // Other unselected options are default color
-    };
-
-    const getIcon = (id: string) => {
-        if (!isAnswerSubmitted || id !== selectedAnswer) return 'circle';
-        
-        return isCorrect ? 'check-circle' : 'times-circle';
+        if (id === QUIZ_DATA.correctAnswerId) return styles.optionCorrect;
+        if (id === selectedAnswer && !isCorrect) return styles.optionIncorrect;
+        return styles.optionDefault;
     };
 
     return (
@@ -90,18 +110,15 @@ export default function QuizScreen() {
                 <View style={styles.headerBox}>
                     <Text style={styles.headerText}>FINAL QUEST QUIZ</Text>
                     <View style={styles.rewardContainer}>
-                        <Text style={styles.rewardText}>REWARD: {QUIZ_DATA.xpReward} XP</Text>
+                        <Text style={styles.rewardText}>REWARD: {QUIZ_DATA.rewardAmount}</Text>
+                        <QCoin width={20} height={20} style={{marginLeft: 5}} />
                     </View>
                 </View>
 
-                {/* --- Question --- */}
                 <View style={styles.questionBox}>
-                    <Text style={styles.questionText}>
-                        {QUIZ_DATA.question}
-                    </Text>
+                    <Text style={styles.questionText}>{QUIZ_DATA.question}</Text>
                 </View>
 
-                {/* --- Options --- */}
                 <View style={styles.optionsList}>
                     {QUIZ_DATA.options.map((option) => (
                         <TouchableOpacity
@@ -111,9 +128,9 @@ export default function QuizScreen() {
                             disabled={isAnswerSubmitted}
                         >
                             <FontAwesome5 
-                                name={getIcon(option.id)}
+                                name={isAnswerSubmitted && option.id === QUIZ_DATA.correctAnswerId ? 'check-circle' : 'circle'}
                                 size={20}
-                                color={isAnswerSubmitted ? (option.id === QUIZ_DATA.correctAnswerId ? 'white' : 'white') : (option.id === selectedAnswer ? 'white' : '#B0B0B0')}
+                                color={'white'}
                                 style={styles.optionIcon}
                             />
                             <Text style={styles.optionText}>{option.text}</Text>
@@ -121,7 +138,6 @@ export default function QuizScreen() {
                     ))}
                 </View>
 
-                {/* --- Feedback & Action Button --- */}
                 {!isAnswerSubmitted && (
                     <TouchableOpacity 
                         style={[styles.submitButton, !selectedAnswer && styles.submitButtonDisabled]}
@@ -135,13 +151,10 @@ export default function QuizScreen() {
                 {isAnswerSubmitted && (
                     <View style={styles.feedbackContainer}>
                         <Text style={isCorrect ? styles.feedbackCorrect : styles.feedbackIncorrect}>
-                            {isCorrect ? '✅ CORRECT! Reward Claimed!' : '❌ INCORRECT!'}
+                            {isCorrect ? '✅ CORRECT! Quest Coins Claimed!' : '❌ INCORRECT!'}
                         </Text>
                         {!isCorrect && (
-                             <TouchableOpacity 
-                                style={styles.tryAgainButton}
-                                onPress={handleTryAgain}
-                            >
+                             <TouchableOpacity style={styles.tryAgainButton} onPress={handleTryAgain}>
                                 <Text style={styles.tryAgainButtonText}>TRY AGAIN</Text>
                             </TouchableOpacity>
                         )}
@@ -153,149 +166,28 @@ export default function QuizScreen() {
     );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#151718',
-    },
-    scrollContainer: {
-        paddingHorizontal: 20,
-        paddingVertical: 30,
-    },
-    headerBox: {
-        marginBottom: 30,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-        alignItems: 'center',
-    },
-    headerText: {
-        color: 'white',
-        fontSize: 24,
-        fontWeight: 'bold',
-        fontFamily: PIXEL_FONT,
-        marginBottom: 10,
-    },
-    rewardContainer: {
-        backgroundColor: 'rgba(255, 215, 0, 0.2)',
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-    },
-    rewardText: {
-        color: '#FFD700',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    questionBox: {
-        backgroundColor: '#2C2C2E',
-        borderRadius: 15,
-        padding: 20,
-        marginBottom: 30,
-        borderLeftWidth: 5,
-        borderLeftColor: '#3498DB',
-    },
-    questionText: {
-        color: 'white',
-        fontSize: 18,
-        fontWeight: '600',
-        lineHeight: 25,
-    },
-    optionsList: {
-        gap: 15,
-        marginBottom: 30,
-    },
-    // --- Option Styles ---
-    optionDefault: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#2C2C2E',
-        padding: 15,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: '#333',
-    },
-    optionSelected: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#3498DB', // Blue selected state
-        padding: 15,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: '#2980B9',
-    },
-    optionCorrect: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#4CAF50', // Green Correct state
-        padding: 15,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: '#388E3C',
-    },
-    optionIncorrect: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#C0392B', // Red Incorrect state
-        padding: 15,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: '#A93226',
-    },
-    optionIcon: {
-        marginRight: 15,
-        width: 20,
-        textAlign: 'center',
-    },
-    optionText: {
-        flex: 1,
-        color: 'white',
-        fontSize: 16,
-    },
-    // --- Button Styles ---
-    submitButton: {
-        backgroundColor: '#FFD700',
-        paddingVertical: 15,
-        borderRadius: 30,
-        alignItems: 'center',
-    },
-    submitButtonDisabled: {
-        backgroundColor: '#555555',
-        opacity: 0.7,
-    },
-    submitButtonText: {
-        color: '#151718',
-        fontSize: 18,
-        fontWeight: 'bold',
-        fontFamily: PIXEL_FONT,
-    },
-    // --- Feedback Styles ---
-    feedbackContainer: {
-        alignItems: 'center',
-        marginTop: 10,
-    },
-    feedbackCorrect: {
-        color: '#4CAF50',
-        fontSize: 22,
-        fontWeight: 'bold',
-        marginBottom: 20,
-    },
-    feedbackIncorrect: {
-        color: '#C0392B',
-        fontSize: 22,
-        fontWeight: 'bold',
-        marginBottom: 15,
-    },
-    tryAgainButton: {
-        backgroundColor: '#3498DB',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 20,
-    },
-    tryAgainButtonText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+    container: { flex: 1, backgroundColor: '#151718' },
+    scrollContainer: { paddingHorizontal: 20, paddingVertical: 30 },
+    headerBox: { marginBottom: 30, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#333', alignItems: 'center' },
+    headerText: { color: 'white', fontSize: 24, fontWeight: 'bold', fontFamily: PIXEL_FONT, marginBottom: 10 },
+    rewardContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(74, 20, 140, 0.3)', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 5, borderColor: '#8E24AA', borderWidth: 1 },
+    rewardText: { color: '#E1BEE7', fontSize: 16, fontWeight: 'bold', fontFamily: PIXEL_FONT },
+    questionBox: { backgroundColor: '#2C2C2E', borderRadius: 15, padding: 20, marginBottom: 30, borderLeftWidth: 5, borderLeftColor: '#3498DB' },
+    questionText: { color: 'white', fontSize: 18, fontWeight: '600', lineHeight: 25 },
+    optionsList: { gap: 15, marginBottom: 30 },
+    optionDefault: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2C2C2E', padding: 15, borderRadius: 10, borderWidth: 2, borderColor: '#333' },
+    optionSelected: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3498DB', padding: 15, borderRadius: 10, borderWidth: 2, borderColor: '#2980B9' },
+    optionCorrect: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4CAF50', padding: 15, borderRadius: 10, borderWidth: 2, borderColor: '#388E3C' },
+    optionIncorrect: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#C0392B', padding: 15, borderRadius: 10, borderWidth: 2, borderColor: '#A93226' },
+    optionIcon: { marginRight: 15, width: 20, textAlign: 'center' },
+    optionText: { flex: 1, color: 'white', fontSize: 16 },
+    submitButton: { backgroundColor: '#FFD700', paddingVertical: 15, borderRadius: 30, alignItems: 'center' },
+    submitButtonDisabled: { backgroundColor: '#555555', opacity: 0.7 },
+    submitButtonText: { color: '#151718', fontSize: 18, fontWeight: 'bold', fontFamily: PIXEL_FONT },
+    feedbackContainer: { alignItems: 'center', marginTop: 10 },
+    feedbackCorrect: { color: '#4CAF50', fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
+    feedbackIncorrect: { color: '#C0392B', fontSize: 22, fontWeight: 'bold', marginBottom: 15 },
+    tryAgainButton: { backgroundColor: '#3498DB', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20 },
+    tryAgainButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 });

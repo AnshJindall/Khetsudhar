@@ -19,7 +19,14 @@ import WinMascot from '../assets/images/winMascot.svg';
 
 const PIXEL_FONT = 'monospace';
 
-const RankRow = ({ rank, name, score, isUser = false }: any) => {
+// Helper to calculate score with multiplier
+const calculateScore = (coins: number, questCoins: number) => {
+  // Example: 1 Quest Coin adds 20% boost (1.2x)
+  const multiplier = 1 + (questCoins * 0.2); 
+  return Math.floor(coins * multiplier);
+};
+
+const RankRow = ({ rank, name, score, isUser = false, multiplier }: any) => {
   let cardStyle: StyleProp<ViewStyle> = styles.defaultCard;
   let numberStyle: StyleProp<ViewStyle> = styles.rankNumberContainer;
 
@@ -42,9 +49,14 @@ const RankRow = ({ rank, name, score, isUser = false }: any) => {
       <View style={numberStyle}>
         <Text style={styles.rankNumber}>{rank}</Text>
       </View>
-      <Text style={styles.rankName}>{name || 'Anonymous'}</Text>
+      <View style={{flex: 1}}>
+        <Text style={styles.rankName}>{name || 'Anonymous'}</Text>
+        {multiplier > 1 && (
+          <Text style={styles.rankMultiplier}>x{multiplier.toFixed(1)} Boost Active</Text>
+        )}
+      </View>
       <View style={styles.scoreContainer}>
-        <Qcoin width={24} height={24} />
+        <Coin width={20} height={20} />
         <Text style={styles.rankScore}>{score}</Text>
       </View>
     </View>
@@ -54,25 +66,40 @@ const RankRow = ({ rank, name, score, isUser = false }: any) => {
 export default function LeaderboardScreen() {
   const [leaders, setLeaders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [currentUserData, setCurrentUserData] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
       const fetchLeaderboard = async () => {
         try {
-          // 1. Get current user ID
           const { data: { session } } = await supabase.auth.getSession();
-          setCurrentUser(session?.user?.id || null);
+          const currentId = session?.user?.id;
 
-          // 2. Fetch top 10 profiles sorted by XP
+          // 1. Fetch all profiles (In production, use a Database Function to sort)
           const { data, error } = await supabase
             .from('profiles')
-            .select('id, full_name, xp')
-            .order('xp', { ascending: false })
-            .limit(10);
+            .select('id, full_name, coins, quest_coins');
 
           if (error) throw error;
-          setLeaders(data || []);
+
+          // 2. Calculate Scores Client-Side (Temporary solution)
+          const rankedUsers = (data || []).map(user => {
+            const qCoins = user.quest_coins || 0;
+            const coins = user.coins || 0;
+            const multiplier = 1 + (qCoins * 0.2);
+            const finalScore = Math.floor(coins * multiplier);
+            
+            return { ...user, finalScore, multiplier };
+          })
+          .sort((a, b) => b.finalScore - a.finalScore) // Sort descending
+          .slice(0, 50); // Top 50
+
+          setLeaders(rankedUsers);
+          
+          if (currentId) {
+            setCurrentUserData(rankedUsers.find(u => u.id === currentId));
+          }
+
         } catch (err) {
           console.error(err);
         } finally {
@@ -90,28 +117,33 @@ export default function LeaderboardScreen() {
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContainer}>
+          
+          {/* --- Header --- */}
           <View style={styles.headerContainer}>
             <WinMascot width={100} height={100} style={styles.mascot} />
             <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>TOP FARMERS</Text>
+              <Text style={styles.headerTitle}>LEADERBOARD</Text>
               <View style={styles.multiplierContainer}>
-                <Coin width={24} height={24} style={styles.coinIcon} />
-                <Text style={styles.multiplierText}>XP LEAGUE</Text>
+                <Qcoin width={20} height={20} style={styles.coinIcon} />
+                <Text style={styles.multiplierText}>
+                  YOUR BOOST: x{currentUserData ? currentUserData.multiplier.toFixed(1) : '1.0'}
+                </Text>
               </View>
             </View>
           </View>
 
+          {/* --- List --- */}
           <View style={styles.listContainer}>
             {leaders.map((user, index) => (
               <RankRow
                 key={user.id}
                 rank={index + 1}
                 name={user.full_name}
-                score={user.xp}
-                isUser={user.id === currentUser}
+                score={user.finalScore}
+                multiplier={user.multiplier}
+                isUser={user.id === currentUserData?.id}
               />
             ))}
-            {leaders.length === 0 && <Text style={{color: 'white', textAlign:'center'}}>No players yet!</Text>}
           </View>
         </ScrollView>
       )}
@@ -127,9 +159,9 @@ const styles = StyleSheet.create({
   mascot: { marginRight: 10 },
   headerText: { flex: 1 },
   headerTitle: { color: 'white', fontSize: 22, fontWeight: 'bold', fontFamily: PIXEL_FONT, letterSpacing: 1 },
-  multiplierContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(253, 216, 53, 0.1)', borderColor: '#FDD835', borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8, alignSelf: 'flex-start' },
+  multiplierContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(74, 20, 140, 0.4)', borderColor: '#8E24AA', borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8, alignSelf: 'flex-start' },
   coinIcon: { marginRight: 6 },
-  multiplierText: { color: '#FDD835', fontSize: 18, fontWeight: 'bold', fontFamily: PIXEL_FONT },
+  multiplierText: { color: '#E1BEE7', fontSize: 14, fontWeight: 'bold', fontFamily: PIXEL_FONT },
   listContainer: { gap: 12 },
   rankCardBase: { flexDirection: 'row', alignItems: 'center', borderRadius: 30, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 2, elevation: 10 },
   goldCard: { backgroundColor: '#544607', borderColor: '#FDD835' },
@@ -143,7 +175,8 @@ const styles = StyleSheet.create({
   bronzeRankNumber: { backgroundColor: 'rgba(205, 127, 50, 0.2)', borderColor: 'rgba(205, 127, 50, 0.5)' },
   userRankNumber: { backgroundColor: 'rgba(2, 119, 189, 0.2)', borderColor: 'rgba(2, 119, 189, 0.5)' },
   rankNumber: { color: 'white', fontSize: 20, fontWeight: 'bold', fontFamily: PIXEL_FONT },
-  rankName: { flex: 1, color: 'white', fontSize: 18, fontWeight: '500' },
+  rankName: { color: 'white', fontSize: 18, fontWeight: '500' },
+  rankMultiplier: { color: '#B0B0B0', fontSize: 10, fontFamily: PIXEL_FONT, marginTop: 2 },
   scoreContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12 },
   rankScore: { color: 'white', fontSize: 16, fontWeight: 'bold', fontFamily: PIXEL_FONT, marginLeft: 6 },
 });

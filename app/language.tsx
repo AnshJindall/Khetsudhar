@@ -1,3 +1,4 @@
+import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -25,11 +26,21 @@ export default function LanguageScreen() {
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleConfirm = () => {
+ const handleConfirm = async () => { // Make async
     if (selectedLanguage) {
-      // UPDATED THIS LINE:
-      router.push('/crop'); // Navigate to the new crop screen
-      console.log('Selected Language:', selectedLanguage);
+      // 2. Add this logic to save to DB
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ language: selectedLanguage })
+          .eq('id', session.user.id);
+          
+        if (error) console.error('Error saving language:', error);
+      }
+
+      router.push('/crop'); 
     }
   };
 

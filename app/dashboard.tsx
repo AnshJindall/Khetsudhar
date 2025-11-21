@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
@@ -39,6 +40,13 @@ export default function DashboardScreen() {
     useCallback(() => {
       const fetchDashboardData = async () => {
         try {
+          // A. LOAD CACHE FIRST (Instant load)
+          const cachedLesson = await AsyncStorage.getItem('dashboard_next_lesson');
+          if (cachedLesson) {
+            setNextLesson(JSON.parse(cachedLesson));
+            setLoading(false); // Stop spinner immediately if cache exists
+          }
+
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
           const userId = session.user.id;
@@ -49,8 +57,13 @@ export default function DashboardScreen() {
           const { data: allLessons } = await supabase.from('lessons').select('*').order('sequence', { ascending: true });
 
           if (allLessons) {
-            const upcoming = allLessons.find(l => !completedIds.includes(l.id));
-            setNextLesson(upcoming || { ...allLessons[allLessons.length - 1], isAllComplete: true });
+            const upcoming = allLessons.find(l => !completedIds.includes(l.id))
+              || { ...allLessons[allLessons.length - 1], isAllComplete: true };
+
+            setNextLesson(upcoming);
+
+            // B. SAVE NEW DATA TO CACHE
+            await AsyncStorage.setItem('dashboard_next_lesson', JSON.stringify(upcoming));
           }
         } catch (error) {
           console.error('Error:', error);
@@ -58,6 +71,7 @@ export default function DashboardScreen() {
           setLoading(false);
         }
       };
+
       fetchDashboardData();
     }, [])
   );
@@ -69,7 +83,7 @@ export default function DashboardScreen() {
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          
+
           <View style={styles.currentLessonContainer}>
             <MascotFarmer width={120} height={120} style={styles.mascot} />
             {nextLesson ? (
@@ -92,7 +106,7 @@ export default function DashboardScreen() {
                 </View>
               </TouchableOpacity>
             ) : (
-              <View style={styles.currentLessonCardBase}><Text style={{color:'white'}}>No lessons available.</Text></View>
+              <View style={styles.currentLessonCardBase}><Text style={{ color: 'white' }}>No lessons available.</Text></View>
             )}
           </View>
 

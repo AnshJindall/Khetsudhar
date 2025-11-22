@@ -26,37 +26,51 @@ export type TranslationKeys =
   | 'take_quiz'
   | 'take_quiz_to_verify'
   | 'continue_learning'
-  | 'profile' // New
-  | 'dashboard' // New
-  | 'rewards_tree_title' // New
-  | 'mission_brief' // New
-  | 'tasks' // New
-  | 'reward_earned' // New
-  | 'quest_completed' // New
-  | 'scan_at_store' // New
-  | 'all_india_prices' // New
-  | 'live_data' // New
-  | 'price_source_tip' // New
-  | 'price_per_unit' // New
-  | 'wealth' // New
-  | 'multiplier' // New
-  | 'quest_coins' // New
-  | 'land_size' // New
-  | 'sustainability_score' // New
-  | 'recent_achievements' // New
-  | 'logout' // New
-  | 'end_session' // New
-  | 'knowledge_check' // New
-  | 'win_xp' // New
-  | 'question' // New
-  | 'submit_answer' // New
-  | 'try_again' // New
-  | 'excellent_work' // New
-  | 'not_quite_right' // New
-  | 'review_lesson' // New
-  | 'claim_reward' // New
-  | 'completed' // New
-  | 'completed_lesson_title'; // New
+  | 'profile'
+  | 'dashboard'
+  | 'rewards_tree_title'
+  | 'mission_brief'
+  | 'tasks'
+  | 'reward_earned'
+  | 'quest_completed'
+  | 'scan_at_store'
+  | 'all_india_prices'
+  | 'live_data'
+  | 'price_source_tip'
+  | 'price_per_unit'
+  | 'wealth'
+  | 'multiplier'
+  | 'quest_coins'
+  | 'land_size'
+  | 'sustainability_score'
+  | 'recent_achievements'
+  | 'logout'
+  | 'end_session'
+  | 'knowledge_check'
+  | 'win_xp'
+  | 'question'
+  | 'submit_answer'
+  | 'try_again'
+  | 'excellent_work'
+  | 'not_quite_right'
+  | 'review_lesson'
+  | 'claim_reward'
+  | 'completed'
+  | 'completed_lesson_title'
+  // --- NEW KEYS REQUIRED FOR OFFLINE & MARKET FEATURES ---
+  | 'offline_mode'
+  | 'save'
+  | 'saving'
+  | 'go_online'
+  | 'completed_btn'
+  | 'market_pulse'
+  | 'live_rates'
+  | 'search_placeholder'
+  | 'stable'
+  | 'syncing'
+  | 'no_data'
+  | 'no_crops'
+  | 'avg_mandi_price';
 
 // Define the structure of the translations
 type Translations = Record<TranslationKeys, string>;
@@ -126,6 +140,21 @@ const translations: LanguageMap = {
     claim_reward: 'CLAIM REWARD',
     completed: 'COMPLETED',
     completed_lesson_title: 'LESSON COMPLETED!',
+    
+    // --- NEW KEYS ---
+    offline_mode: "Offline Mode",
+    save: "SAVE",
+    saving: "SAVING...",
+    go_online: "GO ONLINE TO COMPLETE",
+    completed_btn: "COMPLETED ✓",
+    market_pulse: "MARKET PULSE",
+    live_rates: "Live Mandi Rates",
+    search_placeholder: "Search crops...",
+    stable: "STABLE",
+    syncing: "Syncing...",
+    no_data: "No data yet. Pull to refresh!",
+    no_crops: "No crops found.",
+    avg_mandi_price: "AVG. MANDI PRICE"
   },
   // Hindi (hi)
   hi: {
@@ -186,6 +215,21 @@ const translations: LanguageMap = {
     claim_reward: 'इनाम लें',
     completed: 'पूरा किया',
     completed_lesson_title: 'पाठ पूरा हुआ!',
+    
+    // --- NEW KEYS ---
+    offline_mode: "ऑफ़लाइन मोड",
+    save: "सहेजें",
+    saving: "सहेजा जा रहा है...",
+    go_online: "पूरा करने के लिए ऑनलाइन आएं",
+    completed_btn: "पूर्ण ✓",
+    market_pulse: "बाज़ार की नब्ज",
+    live_rates: "लाइव मंडी दरें",
+    search_placeholder: "फसलें खोजें...",
+    stable: "स्थिर",
+    syncing: "सिंक हो रहा है...",
+    no_data: "अभी तक कोई डेटा नहीं। रीफ्रेश करें!",
+    no_crops: "कोई फसल नहीं मिली।",
+    avg_mandi_price: "औसत मंडी भाव"
   },
   // Punjabi (pa)
   pa: {
@@ -246,6 +290,21 @@ const translations: LanguageMap = {
     claim_reward: 'INAAM LABHO',
     completed: 'PURA HO GAYA',
     completed_lesson_title: 'PAATH PURA HO GAYA!',
+    
+    // --- NEW KEYS ---
+    offline_mode: "ਔਫਲਾਈਨ ਮੋਡ",
+    save: "ਸੰਭਾਲੋ",
+    saving: "ਸੰਭਾਲਿਆ ਜਾ ਰਿਹਾ ਹੈ...",
+    go_online: "ਪੂਰਾ ਕਰਨ ਲਈ ਔਨਲਾਈਨ ਜਾਓ",
+    completed_btn: "ਪੂਰਾ ਹੋਇਆ ✓",
+    market_pulse: "ਬਜ਼ਾਰ ਦੀ ਨਬਜ਼",
+    live_rates: "ਲਾਈਵ ਮੰਡੀ ਦਰਾਂ",
+    search_placeholder: "ਫਸਲਾਂ ਖੋਜੋ...",
+    stable: "ਸਥਿਰ",
+    syncing: "ਸਿੰਕ ਹੋ ਰਿਹਾ ਹੈ...",
+    no_data: "ਅਜੇ ਕੋਈ ਡਾਟਾ ਨਹੀਂ। ਰੀਫ੍ਰੈਸ਼ ਕਰੋ!",
+    no_crops: "ਕੋਈ ਫਸਲ ਨਹੀਂ ਮਿਲੀ।",
+    avg_mandi_price: "ਔਸਤ ਮੰਡੀ ਮੁੱਲ"
   }
 };
 

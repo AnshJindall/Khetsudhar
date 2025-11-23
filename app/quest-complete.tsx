@@ -8,11 +8,13 @@ import {
   View,
 } from 'react-native';
 
+import { useTranslation } from '@/hooks/useTranslation';
 // Importing your existing Coin asset
 import Coin from '../assets/images/coin.svg';
 
 export default function QuestCompleteScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   // --- FIX: This handler now replaces the current screen with the dashboard ---
   const handleContinue = () => {
@@ -47,10 +49,11 @@ export default function QuestCompleteScreen() {
             <FontAwesome5 name="check" size={50} color="white" />
           </View>
 
-          <Text style={styles.completedTitle}>QUEST COMPLETED!</Text>
+          {/* --- TRANSLATION APPLIED --- */}
+          <Text style={styles.completedTitle}>{t('quest_completed')}</Text>
           
           <View style={styles.rewardContainer}>
-            <Text style={styles.rewardLabel}>REWARD EARNED:</Text>
+            <Text style={styles.rewardLabel}>{t('reward_earned')}</Text>
             <View style={styles.rewardValueRow}>
               <Coin width={32} height={32} />
               <Text style={styles.rewardValueText}>1000</Text>
@@ -64,15 +67,16 @@ export default function QuestCompleteScreen() {
         {/* Continue Button */}
         <TouchableOpacity 
           style={styles.continueButton} 
-          onPress={handleContinue} // --- ROUTING FIX APPLIED HERE ---
+          onPress={handleContinue} 
         >
-          <Text style={styles.continueButtonText}>CONTINUE</Text>
+          <Text style={styles.continueButtonText}>{t('continue_learning')}</Text>
         </TouchableOpacity>
 
       </View>
     </SafeAreaView>
   );
 }
+
 // Styles (No changes needed)
 const styles = StyleSheet.create({
   safeArea: {
@@ -173,8 +177,11 @@ const styles = StyleSheet.create({
   rewardLabel: {
     color: '#E0E0E0',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
     fontFamily: 'monospace',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
   },
   rewardValueRow: {
     flexDirection: 'row',

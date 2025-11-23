@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { useTranslation } from '@/hooks/useTranslation';
 import Checkmark from '../../assets/images/check.svg';
 import Coin from '../../assets/images/coin.svg';
 
@@ -21,13 +22,13 @@ const LESSON_INFO: { [key: string]: any } = {
 
 export default function LessonCompleteScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const lesson = LESSON_INFO[id] || { title: 'Lesson Completed', points: 1000 };
 
   const handleContinue = () => {
-    // --- LOGIC FIX: Go back to Lessons List to continue progress ---
-    // We use replace to pop this completion screen off the stack
+    // Go back to Lessons List to continue progress
     router.replace('/lessons');
   };
 
@@ -43,10 +44,11 @@ export default function LessonCompleteScreen() {
         {/* Main Completion Card */}
         <View style={styles.card}>
           <Checkmark width={200} height={200} style={styles.checkmark} />
-          <Text style={styles.completeText}>LESSON COMPLETED!</Text>
+          {/* --- TRANSLATION APPLIED --- */}
+          <Text style={styles.completeText}>{t('completed_lesson_title')}</Text>
 
           <View style={styles.rewardContainer}>
-            <Text style={styles.rewardTitle}>XP EARNED:</Text>
+            <Text style={styles.rewardTitle}>XP {t('reward_earned').replace(':', '')}</Text>
             <View style={styles.pointsContainer}>
               <Coin width={30} height={30} style={styles.coinIcon} />
               <Text style={styles.pointsText}>{lesson.points}</Text>
@@ -59,7 +61,7 @@ export default function LessonCompleteScreen() {
 
         {/* Continue Button */}
         <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueButtonText}>CONTINUE LEARNING</Text>
+          <Text style={styles.continueButtonText}>{t('continue_learning')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

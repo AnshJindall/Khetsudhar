@@ -1,5 +1,5 @@
 import { FontAwesome5 } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker'; // <--- REAL IMPORT
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
@@ -22,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 
+import { useTranslation } from '@/hooks/useTranslation';
 import { supabase } from '@/utils/supabase';
 
 // --- Assets ---
@@ -34,10 +35,21 @@ import WinMascot from '../assets/images/winMascot.svg';
 
 const PIXEL_FONT = 'monospace';
 
+// --- HELPER: Base64 Decoder ---
+const decode = (base64: string) => {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
 // --- 1. CUSTOM ANIMATED GAUGE ---
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const SustainabilityGauge = ({ score }: { score: string }) => {
+const SustainabilityGauge = ({ t, score }: { t: (key: any) => string, score: string }) => {
   const getScoreConfig = (s: string) => {
     const normalized = s?.toUpperCase() || 'LOW';
     switch (normalized) {
@@ -107,6 +119,7 @@ const XPBar = ({ current, max, level }: { current: number, max: number, level: n
 // --- MAIN SCREEN ---
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t, isLoading: isTransLoading } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -135,93 +148,91 @@ export default function ProfileScreen() {
     }, [])
   );
   
-  // --- REAL IMAGE UPLOAD LOGIC ---
+  // --- REAL IMAGE UPLOAD LOGIC (RESTORED) ---
   const handleImageUpload = async () => {
-    if (!profile?.id) return;
-
     try {
+      setUploading(true);
+
       // 1. Pick Image
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.5,
-        base64: true, // Important for upload
+        base64: true, // Needed for upload
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
+        setUploading(false);
         return;
       }
 
-      setUploading(true);
       const image = result.assets[0];
-      const fileExt = image.uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      if (!image.base64) {
+        Alert.alert("Error", "Image data missing.");
+        return;
+      }
 
-      // 2. Convert base64 to ArrayBuffer for Supabase
-      const base64 = image.base64;
-      const arrayBuffer = decode(base64!);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const userId = session.user.id;
 
-      // 3. Upload to Supabase Storage
+      // 2. Upload to Supabase Storage
+      const fileExt = image.uri.split('.').pop()?.toLowerCase() ?? 'jpeg';
+      const fileName = `${userId}/avatar.${fileExt}`;
+      const fileData = decode(image.base64);
+
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, arrayBuffer, {
-          contentType: image.mimeType || 'image/jpeg',
+        .from('avatars') // Ensure this bucket exists in Supabase!
+        .upload(fileName, fileData, {
+          contentType: image.mimeType ?? 'image/jpeg',
           upsert: true,
         });
 
       if (uploadError) throw uploadError;
 
-      // 4. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
+      // 3. Get Public URL
+      const { data: urlData } = supabase.storage
         .from('avatars')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
-      // 5. Save URL to Profile
+      // Add timestamp to force UI refresh
+      const publicUrl = `${urlData.publicUrl}?t=${new Date().getTime()}`;
+
+      // 4. Update Profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
-        .eq('id', profile.id);
+        .eq('id', userId);
 
       if (updateError) throw updateError;
 
       setProfile({ ...profile, avatar_url: publicUrl });
-      Alert.alert('Success', 'Profile picture updated!');
+      Alert.alert("Success", "Profile picture updated!");
 
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      console.error("Upload error:", error);
+      Alert.alert("Upload Failed", error.message || "Unknown error");
     } finally {
       setUploading(false);
     }
   };
 
-  // Helper for base64 decoding
-  const decode = (base64: string) => {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  };
-
   const handleLogout = async () => {
-    Alert.alert('Logout', 'End your session?', [
+    Alert.alert(t('logout'), t('end_session'), [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: async () => await supabase.auth.signOut() },
+      { text: t('logout'), style: 'destructive', onPress: async () => await supabase.auth.signOut() },
     ]);
   };
 
-  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#4CAF50" /></View>;
+  if (loading || isTransLoading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#4CAF50" /></View>;
 
   if (!profile) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={{color:'white', marginBottom: 20, fontFamily: PIXEL_FONT}}>GUEST MODE</Text>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>LOGIN</Text>
+          <Text style={styles.logoutButtonText}>{t('login')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -270,24 +281,24 @@ export default function ProfileScreen() {
 
         {/* STATS */}
         <View style={styles.gridContainer}>
-          <StatCard label="WEALTH" value={String(profile.coins || 0)} icon={<Coin width={20} height={20} />} />
-          <StatCard label="MULTIPLIER" value={`x${multiplier.toFixed(1)}`} icon={<Qcoin width={20} height={20} />} />
-          <StatCard label="QUEST COINS" value={String(profile.quest_coins || 0)} icon={<Qcoin width={20} height={20} />} />
-          <StatCard label="LAND SIZE" value={profile.land_size || 'N/A'} icon={<FarmIcon width={20} height={20} />} />
+          <StatCard label={t('wealth')} value={String(profile.coins || 0)} icon={<Coin width={20} height={20} />} />
+          <StatCard label={t('multiplier')} value={`x${multiplier.toFixed(1)}`} icon={<Qcoin width={20} height={20} />} />
+          <StatCard label={t('quest_coins')} value={String(profile.quest_coins || 0)} icon={<Qcoin width={20} height={20} />} />
+          <StatCard label={t('land_size')} value={profile.land_size || 'N/A'} icon={<FarmIcon width={20} height={20} />} />
         </View>
 
         {/* SUSTAINABILITY */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>SUSTAINABILITY SCORE</Text>
+          <Text style={styles.sectionHeader}>{t('sustainability_score')}</Text>
           <View style={styles.gaugeCard}>
-            <SustainabilityGauge score={profile.sustainability_score} />
+            <SustainabilityGauge t={t} score={profile.sustainability_score} />
             <Text style={styles.gaugeTip}>Keep using organic fertilizers to boost your score!</Text>
           </View>
         </View>
 
         {/* ACHIEVEMENTS */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>RECENT ACHIEVEMENTS</Text>
+          <Text style={styles.sectionHeader}>{t('recent_achievements')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achievementsRow}>
             <View style={styles.achievementBadge}><WinMascot width={40} height={40} /><Text style={styles.achievementText}>First Harvest</Text></View>
             <View style={styles.achievementBadge}><RewardIcon width={40} height={40} /><Text style={styles.achievementText}>Rich Soil</Text></View>
@@ -296,7 +307,7 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>LOGOUT</Text>
+          <Text style={styles.logoutButtonText}>{t('logout')}</Text>
         </TouchableOpacity>
 
       </ScrollView>

@@ -2,6 +2,7 @@ import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator, 
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,9 @@ import {
   View,
 } from 'react-native';
 
-// List of languages from your design
+import { useTranslation } from '@/hooks/useTranslation';
+
+// List of languages 
 const LANGUAGES = [
   { id: 'hi', name: 'हिन्दी/HINDI' },
   { id: 'en', name: 'ENGLISH' },
@@ -18,17 +21,22 @@ const LANGUAGES = [
   { id: 'ta', name: 'தமிழ்/TAMIL' },
   { id: 'kn', name: 'ಕನ್ನಡ/KANNADA' },
   { id: 'te', name: 'తెలుగు/TELUGU' },
+  { id: 'pa', name: 'ਪੰਜਾਬੀ/PUNJABI' }, 
   { id: 'kok', name: 'कोंकणी/KONKANI' },
   { id: 'mr', name: 'मराठी/MARATHI' },
 ];
 
 export default function LanguageScreen() {
-  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const router = useRouter();
+  const { t, setLanguage, isLoading: isTransLoading } = useTranslation(); 
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
 
- const handleConfirm = async () => { // Make async
+ const handleConfirm = async () => { 
     if (selectedLanguage) {
-      // 2. Add this logic to save to DB
+      // 1. Update the local context/storage immediately
+      setLanguage(selectedLanguage);
+      
+      // 2. Save language to DB
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
@@ -44,12 +52,20 @@ export default function LanguageScreen() {
     }
   };
 
+  if (isTransLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Title Section */}
-        <Text style={styles.title}>CHOOSE YOUR LANGUAGE</Text>
-        <Text style={styles.subtitle}>अपनी भाषा चुनें</Text>
+        {/* Title Section - USE TRANSLATION */}
+        <Text style={styles.title}>{t('choose_language')}</Text>
+        <Text style={styles.subtitle}>{t('choose_your_language_in_hindi')}</Text>
 
         {/* Language List */}
         <View style={styles.listContainer}>
@@ -69,7 +85,7 @@ export default function LanguageScreen() {
         {/* Spacer View to push confirm button to bottom */}
         <View style={{ flex: 1 }} />
 
-        {/* Confirm Button */}
+        {/* Confirm Button - USE TRANSLATION */}
         <TouchableOpacity
           style={[
             styles.confirmButton,
@@ -77,7 +93,7 @@ export default function LanguageScreen() {
           ]}
           disabled={!selectedLanguage}
           onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>CONFIRM</Text>
+          <Text style={styles.confirmButtonText}>{t('confirm')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -88,6 +104,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#151718', // Dark background
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#151718' 
   },
   container: {
     flexGrow: 1,

@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -36,6 +37,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import { supabase } from '@/utils/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 
 import Checkmark from '../assets/images/check.svg';
 import CoinIcon from '../assets/images/coin.svg';
@@ -61,7 +63,6 @@ const CROP_IMAGES: { [key: string]: any } = {
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 // --- CALIBRATED VINE PROGRESS ---
-// Adjusted these values so the green line stops exactly at the node center
 const INITIAL_REWARD_DATA = [
   {
     id: 1,
@@ -214,6 +215,7 @@ const RewardNode = ({ node, index, onPress }: any) => {
 };
 
 export default function RewardRootScreen() {
+  const { t, isLoading: isTransLoading } = useTranslation();
   const [rewards, setRewards] = useState<any[]>([]);
   const [userPoints, setUserPoints] = useState(0);
   const [collectedCount, setCollectedCount] = useState(0);
@@ -221,6 +223,7 @@ export default function RewardRootScreen() {
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeReward, setActiveReward] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   const animatedStrokeDashoffset = useSharedValue(VINE_LENGTH);
 
@@ -234,7 +237,7 @@ export default function RewardRootScreen() {
           if (cachedCrop) setSelectedCrop(cachedCrop);
 
           const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return;
+          if (!session) { setLoading(false); return; }
           setUserId(session.user.id);
 
           const [profileResult, rewardsResult] = await Promise.all([
@@ -254,8 +257,6 @@ export default function RewardRootScreen() {
           setCollectedCount(unlockedIds.length);
           const maxUnlockedId = Math.max(0, ...unlockedIds);
           
-          // --- FIXED VINE LOGIC ---
-          // Only grow to the exact point of the last unlocked reward. No overshoot.
           const lastUnlockedReward = INITIAL_REWARD_DATA.find(r => r.id === maxUnlockedId);
           const targetProgress = lastUnlockedReward ? lastUnlockedReward.vineProgress : 0;
 
@@ -270,6 +271,8 @@ export default function RewardRootScreen() {
 
         } catch (e) {
           console.error("Error:", e);
+        } finally {
+          setLoading(false); 
         }
       };
       loadData();
@@ -287,18 +290,21 @@ export default function RewardRootScreen() {
       return;
     }
     if (!node.isCurrent) {
-      Alert.alert("Locked", "Grow your roots step by step!");
+      // --- TRANSLATION APPLIED ---
+      Alert.alert(t('unlocked'), "Grow your roots step by step!"); // Using fallback body here
       return;
     }
     if (userPoints < node.cost) {
-      Alert.alert("Short on Coins", `You need ${node.cost} coins.`);
+      // --- TRANSLATION APPLIED ---
+      Alert.alert(t('available_coins'), `You need ${node.cost} coins.`); 
       return;
     }
 
-    Alert.alert("Unlock Reward?", `Spend ${node.cost} coins?`, [
-      { text: "Cancel", style: "cancel" },
+    // --- TRANSLATION APPLIED ---
+    Alert.alert(t('rewards_tree_title'), `Spend ${node.cost} coins?`, [
+      { text: t('confirm'), style: "cancel" },
       {
-        text: "Unlock",
+        text: t('confirm'), // Re-using confirm for unlock button text
         onPress: async () => {
           if (!userId) return;
           
@@ -330,6 +336,8 @@ export default function RewardRootScreen() {
     ? CROP_IMAGES[selectedCrop.toLowerCase()] 
     : CROP_IMAGES['banana']; 
 
+  if (loading || isTransLoading) return <SafeAreaView style={styles.container}><ActivityIndicator size="large" color="#4CAF50" /></SafeAreaView>;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
@@ -339,8 +347,8 @@ export default function RewardRootScreen() {
         <Svg height="100%" width="100%">
           <Defs>
             <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <Stop offset="0" stopColor="#1b2e15" />{/* Deep Organic Green */}
-              <Stop offset="1" stopColor="#0f1a0d" />{/* Dark Soil */}
+              <Stop offset="0" stopColor="#1b2e15" />
+              <Stop offset="1" stopColor="#0f1a0d" />
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#bgGrad)" />
@@ -351,11 +359,13 @@ export default function RewardRootScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.statsContainer}>
-          <StatBox label="AVAILABLE COINS" value={String(userPoints)} iconName="coins" />
-          <StatBox label="UNLOCKED" value={String(collectedCount)} iconName="gift" />
+          {/* --- TRANSLATION APPLIED --- */}
+          <StatBox label={t('available_coins')} value={String(userPoints)} iconName="coins" />
+          <StatBox label={t('unlocked')} value={String(collectedCount)} iconName="gift" />
         </View>
         
-        <Text style={styles.rewardRootTitle}>REWARDS TREE</Text>
+        {/* --- TRANSLATION APPLIED --- */}
+        <Text style={styles.rewardRootTitle}>{t('rewards_tree_title')}</Text>
         
         <View style={styles.rootContainer}>
           <Svg style={styles.vineSvg} height={1200} width={300}>
@@ -402,11 +412,12 @@ export default function RewardRootScreen() {
                 <View style={styles.qrBox}>
                   <QRCode value={`KHET_REWARD_${activeReward.id}_USER_${userId}`} size={180} />
                 </View>
-                <Text style={styles.scanInstruction}>Scan at store to claim</Text>
+                {/* --- TRANSLATION APPLIED --- */}
+                <Text style={styles.scanInstruction}>{t('scan_at_store')}</Text>
               </>
             )}
             <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButtonText}>DONE</Text>
+              <Text style={styles.closeButtonText}>{t('confirm')}</Text>
             </TouchableOpacity>
           </View>
         </View>

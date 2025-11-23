@@ -8,7 +8,10 @@ import {
   ScrollView,
   SafeAreaView,
   Animated,
+  ActivityIndicator
 } from 'react-native';
+
+import { useTranslation } from '@/hooks/useTranslation';
 
 // --- Mock Quiz Data ---
 const QUIZ_DATA: { [key: string]: any } = {
@@ -32,6 +35,7 @@ const QUIZ_DATA: { [key: string]: any } = {
 
 export default function QuizScreen() {
   const router = useRouter();
+  const { t, isLoading: isTransLoading } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerStatus, setAnswerStatus] = useState<'correct' | 'incorrect' | null>(null);
@@ -57,17 +61,13 @@ export default function QuizScreen() {
     setAnswerStatus(isCorrect ? 'correct' : 'incorrect');
 
     if (isCorrect) {
-      // --- THIS IS THE CHANGE ---
-      // Correct! Pause and then move to complete screen.
       setTimeout(() => {
         router.push({
           pathname: '/complete/[id]',
           params: { id: id }, // Pass the lesson ID
         });
-      }, 1500); // 1.5-second delay to show "Correct!"
-      // --------------------------
+      }, 1500); 
     } else {
-      // Incorrect! Shake the button.
       startShake();
       setTimeout(() => {
         setAnswerStatus(null);
@@ -85,6 +85,14 @@ export default function QuizScreen() {
     inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1],
     outputRange: [0, -10, 10, -10, 10, 0],
   });
+
+  if (isTransLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -130,10 +138,10 @@ export default function QuizScreen() {
         {/* Feedback Text */}
         <View style={styles.feedbackContainer}>
           {answerStatus === 'correct' && (
-            <Text style={[styles.feedbackText, styles.feedbackCorrect]}>Correct!</Text>
+            <Text style={[styles.feedbackText, styles.feedbackCorrect]}>{t('excellent_work')}</Text>
           )}
           {answerStatus === 'incorrect' && (
-            <Text style={[styles.feedbackText, styles.feedbackIncorrect]}>Try Again!</Text>
+            <Text style={[styles.feedbackText, styles.feedbackIncorrect]}>{t('try_again')}</Text>
           )}
         </View>
 
@@ -145,7 +153,7 @@ export default function QuizScreen() {
           ]}
           disabled={!selectedAnswer || !!answerStatus}
           onPress={handleCheckAnswer}>
-          <Text style={styles.confirmButtonText}>CHECK ANSWER</Text>
+          <Text style={styles.confirmButtonText}>{t('submit_answer')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -157,6 +165,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#151718', // Dark background
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#151718' 
   },
   container: {
     flexGrow: 1,

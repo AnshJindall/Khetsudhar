@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
@@ -14,10 +15,12 @@ import {
 } from 'react-native';
 
 import { supabase } from '@/utils/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 import UserIcon from '../assets/images/user.svg';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t, isLoading: isTransLoading } = useTranslation();
   const { lesson_completed } = useLocalSearchParams<{ lesson_completed?: string }>();
 
   const [username, setUsername] = useState('');
@@ -61,16 +64,24 @@ export default function LoginScreen() {
 
   const isLoginActive = username.trim() !== '' && password.length > 0 && !isLoading;
 
+  if (isTransLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>LOGIN</Text>
+        <Text style={styles.title}>{t('login')}</Text>
 
         <View style={styles.avatarContainer}>
           <UserIcon width={100} height={100} />
         </View>
         
-        <Text style={styles.inputLabel}>USERNAME</Text>
+        <Text style={styles.inputLabel}>{t('username')}</Text>
         <TextInput
           style={styles.input as StyleProp<TextStyle>}
           placeholder="Enter your username"
@@ -80,7 +91,7 @@ export default function LoginScreen() {
           onChangeText={setUsername}
         />
 
-        <Text style={styles.inputLabel}>PASSWORD</Text>
+        <Text style={styles.inputLabel}>{t('password')}</Text>
         <TextInput
           style={styles.input as StyleProp<TextStyle>}
           placeholder="Enter your password"
@@ -98,18 +109,18 @@ export default function LoginScreen() {
           disabled={!isLoginActive}
           onPress={handleLogin}>
           <Text style={styles.actionButtonText}>
-            {isLoading ? 'LOGGING IN...' : 'LOGIN'}
+            {isLoading ? t('logging_in') : t('login')}
           </Text>
         </TouchableOpacity>
 
         <View style={styles.accountLinkContainer}>
-          <Text style={styles.accountLinkText}>Don't have an account?</Text>
+          <Text style={styles.accountLinkText}>{t('dont_have_account')}</Text>
           <TouchableOpacity onPress={() => router.replace('/signup')}>
-            <Text style={styles.createOneText}>Create one</Text>
+            <Text style={styles.createOneText}>{t('create_one')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.dataNote}>DATA AS PER FARMER REGISTRY 2025</Text>
+        <Text style={styles.dataNote}>{t('data_note')}</Text>
 
       </ScrollView>
     </SafeAreaView>
@@ -118,6 +129,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#151718' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' },
   container: { flexGrow: 1, paddingHorizontal: 30, paddingTop: 40, paddingBottom: 30, alignItems: 'center' },
   title: { color: '#FFFFFF', fontSize: 32, fontWeight: 'bold', marginBottom: 30 },
   avatarContainer: { backgroundColor: '#333333', borderRadius: 15, padding: 20, marginBottom: 30 },

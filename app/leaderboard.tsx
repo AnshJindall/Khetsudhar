@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { supabase } from '@/utils/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 import Qcoin from '../assets/images/Qcoin.svg';
 import Coin from '../assets/images/coin.svg';
 import WinMascot from '../assets/images/winMascot.svg';
@@ -64,6 +65,7 @@ const RankRow = ({ rank, name, score, isUser = false, multiplier }: any) => {
 };
 
 export default function LeaderboardScreen() {
+  const { t, isLoading: isTransLoading } = useTranslation();
   const [leaders, setLeaders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserData, setCurrentUserData] = useState<any>(null);
@@ -110,43 +112,43 @@ export default function LeaderboardScreen() {
     }, [])
   );
 
+  if (loading || isTransLoading) return <SafeAreaView style={styles.container}><View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View></SafeAreaView>;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      {loading ? (
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          
-          {/* --- Header --- */}
-          <View style={styles.headerContainer}>
-            <WinMascot width={100} height={100} style={styles.mascot} />
-            <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>LEADERBOARD</Text>
-              <View style={styles.multiplierContainer}>
-                <Qcoin width={20} height={20} style={styles.coinIcon} />
-                <Text style={styles.multiplierText}>
-                  YOUR BOOST: x{currentUserData ? currentUserData.multiplier.toFixed(1) : '1.0'}
-                </Text>
-              </View>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        
+        {/* --- Header --- */}
+        <View style={styles.headerContainer}>
+          <WinMascot width={100} height={100} style={styles.mascot} />
+          <View style={styles.headerText}>
+            {/* --- USE TRANSLATION HERE --- */}
+            <Text style={styles.headerTitle}>{t('leaderboard')}</Text>
+            {/* ---------------------------- */}
+            <View style={styles.multiplierContainer}>
+              <Qcoin width={20} height={20} style={styles.coinIcon} />
+              <Text style={styles.multiplierText}>
+                YOUR BOOST: x{currentUserData ? currentUserData.multiplier.toFixed(1) : '1.0'}
+              </Text>
             </View>
           </View>
+        </View>
 
-          {/* --- List --- */}
-          <View style={styles.listContainer}>
-            {leaders.map((user, index) => (
-              <RankRow
-                key={user.id}
-                rank={index + 1}
-                name={user.full_name}
-                score={user.finalScore}
-                multiplier={user.multiplier}
-                isUser={user.id === currentUserData?.id}
-              />
-            ))}
-          </View>
-        </ScrollView>
-      )}
+        {/* --- List --- */}
+        <View style={styles.listContainer}>
+          {leaders.map((user, index) => (
+            <RankRow
+              key={user.id}
+              rank={index + 1}
+              name={user.full_name}
+              score={user.finalScore}
+              multiplier={user.multiplier}
+              isUser={user.id === currentUserData?.id}
+            />
+          ))}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

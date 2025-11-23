@@ -2,6 +2,7 @@ import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   SafeAreaView,
   ScrollView,
@@ -10,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Define the crop data
 const CROPS = [
@@ -26,6 +29,7 @@ const CROPS = [
 export default function CropScreen() {
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const router = useRouter();
+  const { t, isLoading: isTransLoading } = useTranslation(); 
 
 const handleConfirm = async () => { // Make async
     if (selectedCrop) {
@@ -45,12 +49,20 @@ const handleConfirm = async () => { // Make async
     }
   };
 
+  if (isTransLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Title Section */}
-        <Text style={styles.title}>CHOOSE YOUR CROP</Text>
-        <Text style={styles.subtitle}>अपनी फसल चुनें</Text>
+        {/* Title Section - USE TRANSLATION */}
+        <Text style={styles.title}>{t('choose_crop')}</Text>
+        <Text style={styles.subtitle}>{t('choose_your_crop_in_hindi')}</Text>
 
         {/* Crop Grid */}
         <View style={styles.gridContainer}>
@@ -71,7 +83,7 @@ const handleConfirm = async () => { // Make async
         {/* Spacer View to push confirm button to bottom */}
         <View style={{ flex: 1 }} />
 
-        {/* Confirm Button */}
+        {/* Confirm Button - USE TRANSLATION */}
         <TouchableOpacity
           style={[
             styles.confirmButton,
@@ -79,7 +91,7 @@ const handleConfirm = async () => { // Make async
           ]}
           disabled={!selectedCrop}
           onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>CONFIRM</Text>
+          <Text style={styles.confirmButtonText}>{t('confirm')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -90,6 +102,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#151718', // Dark background
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#151718' 
   },
   container: {
     flexGrow: 1,

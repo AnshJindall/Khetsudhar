@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 
 import { supabase } from '@/utils/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 import UserIcon from '../assets/images/user.svg';
 
 const upsertProfile = async (userId: string, fullName: string, mobileNo: string, agriStackId: string) => {
@@ -27,6 +29,7 @@ const upsertProfile = async (userId: string, fullName: string, mobileNo: string,
 
 export default function SignupScreen() { 
   const router = useRouter();
+  const { t, isLoading: isTransLoading } = useTranslation();
   const { lesson_completed } = useLocalSearchParams<{ lesson_completed?: string }>();
 
   const [fullName, setFullName] = useState('');
@@ -72,16 +75,24 @@ export default function SignupScreen() {
 
   const isRegisterActive = username.length >= 3 && password.length >= 6 && fullName.trim() !== '' && !isLoading;
 
+  if (isTransLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
+      </SafeAreaView>
+    );
+  }
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>SIGN UP</Text> 
+        <Text style={styles.title}>{t('signup')}</Text> 
         <View style={styles.avatarContainer}><UserIcon width={100} height={100} /></View>
         <Text style={styles.inputLabel}>FULL NAME</Text>
         <TextInput style={styles.input as StyleProp<TextStyle>} placeholder="Enter full name" placeholderTextColor="#A0A0A0" value={fullName} onChangeText={setFullName} />
-        <Text style={styles.inputLabel}>USERNAME</Text>
+        <Text style={styles.inputLabel}>{t('username')}</Text>
         <TextInput style={styles.input as StyleProp<TextStyle>} placeholder="Create username" placeholderTextColor="#A0A0A0" autoCapitalize="none" value={username} onChangeText={setUsername} />
-        <Text style={styles.inputLabel}>PASSWORD</Text>
+        <Text style={styles.inputLabel}>{t('password')}</Text>
         <TextInput style={styles.input as StyleProp<TextStyle>} placeholder="Create password" placeholderTextColor="#A0A0A0" secureTextEntry value={password} onChangeText={setPassword} />
         <Text style={styles.inputLabel}>MOBILE NO.</Text>
         <TextInput style={styles.input as StyleProp<TextStyle>} placeholder="Enter phone no." placeholderTextColor="#A0A0A0" keyboardType="numeric" maxLength={10} value={mobileNo} onChangeText={setMobileNo} />
@@ -93,8 +104,8 @@ export default function SignupScreen() {
         </TouchableOpacity>
 
         <View style={styles.accountLinkContainer}>
-          <Text style={styles.accountLinkText}>Already have an account?</Text> 
-          <TouchableOpacity onPress={() => router.replace('/login')}><Text style={styles.createOneText}>Login</Text></TouchableOpacity>
+          <Text style={styles.accountLinkText}>{t('already_have_account')}</Text> 
+          <TouchableOpacity onPress={() => router.replace('/login')}><Text style={styles.createOneText}>{t('login')}</Text></TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -103,6 +114,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#151718' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' },
   container: { flexGrow: 1, paddingHorizontal: 30, paddingTop: 40, paddingBottom: 30, alignItems: 'center' },
   title: { color: '#FFFFFF', fontSize: 32, fontWeight: 'bold', marginBottom: 30 },
   avatarContainer: { backgroundColor: '#333333', borderRadius: 15, padding: 20, marginBottom: 30 },

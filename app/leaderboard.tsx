@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleProp,
@@ -18,16 +19,7 @@ import Qcoin from '../assets/images/Qcoin.svg';
 import Coin from '../assets/images/coin.svg';
 import WinMascot from '../assets/images/winMascot.svg';
 
-import { Platform } from 'react-native';
-// Uses San Francisco on iOS and Roboto on Android
 const PIXEL_FONT = Platform.OS === 'ios' ? 'System' : 'Roboto';
-
-// Helper to calculate score with multiplier
-const calculateScore = (coins: number, questCoins: number) => {
-  // Example: 1 Quest Coin adds 20% boost (1.2x)
-  const multiplier = 1 + (questCoins * 0.2); 
-  return Math.floor(coins * multiplier);
-};
 
 const RankRow = ({ rank, name, score, isUser = false, multiplier }: any) => {
   let cardStyle: StyleProp<ViewStyle> = styles.defaultCard;
@@ -55,12 +47,13 @@ const RankRow = ({ rank, name, score, isUser = false, multiplier }: any) => {
       <View style={{flex: 1}}>
         <Text style={styles.rankName}>{name || 'Anonymous'}</Text>
         {multiplier > 1 && (
-          <Text style={styles.rankMultiplier}>x{multiplier.toFixed(1)} Boost Active</Text>
+          <Text style={styles.rankMultiplier}>x{multiplier?.toFixed(1) || '1.0'} Boost Active</Text>
         )}
       </View>
       <View style={styles.scoreContainer}>
         <Coin width={20} height={20} />
-        <Text style={styles.rankScore}>{score}</Text>
+        {/* FIX: Ensure score is a string or number, default to 0 */}
+        <Text style={styles.rankScore}>{score !== undefined && score !== null ? score : 0}</Text>
       </View>
     </View>
   );
@@ -74,52 +67,53 @@ export default function LeaderboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // REPLACE your fetchLeaderboard function with this:
+      const fetchLeaderboard = async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const currentId = session?.user?.id;
 
-const fetchLeaderboard = async () => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const currentId = session?.user?.id;
+          // 1. Fetch top 50
+          const { data, error } = await supabase
+            .from('profiles') // Fallback to 'profiles' if view doesn't exist
+            .select('id, full_name, coins, xp') 
+            .order('coins', { ascending: false })
+            .limit(50);
 
-    // FEAT: Fetch only the top 50 pre-calculated rows from the Database View
-    // This is instant, even with 1 million users.
-    const { data, error } = await supabase
-      .from('leaderboard_view')
-      .select('*')
-      .limit(50);
+          if (error) throw error;
 
-    if (error) throw error;
+          setLeaders(data || []);
+          
+          if (currentId) {
+            let userEntry = data?.find(u => u.id === currentId);
+            if (!userEntry) {
+              const { data: userData } = await supabase
+                .from('profiles')
+                .select('id, full_name, coins, xp')
+                .eq('id', currentId)
+                .single();
+              userEntry = userData;
+            }
+            setCurrentUserData(userEntry);
+          }
 
-    setLeaders(data || []);
-    
-    // Find current user's rank efficiently
-    if (currentId) {
-      // If user is in top 50, find them there
-      let userEntry = data?.find(u => u.id === currentId);
-      
-      // If user is NOT in top 50, fetch just their specific row
-      if (!userEntry) {
-        const { data: userData } = await supabase
-          .from('leaderboard_view')
-          .select('*')
-          .eq('id', currentId)
-          .single();
-        userEntry = userData;
-      }
-      setCurrentUserData(userEntry);
-    }
-
-  } catch (err) {
-    console.error('Leaderboard error:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+        } catch (err) {
+          console.error('Leaderboard error:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
       fetchLeaderboard();
     }, [])
   );
 
   if (loading || isTransLoading) return <SafeAreaView style={styles.container}><View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View></SafeAreaView>;
+
+  // Helper to calculate multiplier based on XP or other logic if needed
+  // For now, defaulting to 1.0 if not in DB
+  const getUserMultiplier = (user: any) => {
+     // Example logic: Base 1.0 + (XP / 10000)
+     return 1.0 + ((user.xp || 0) * 0.0001);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -130,13 +124,11 @@ const fetchLeaderboard = async () => {
         <View style={styles.headerContainer}>
           <WinMascot width={100} height={100} style={styles.mascot} />
           <View style={styles.headerText}>
-            {/* --- USE TRANSLATION HERE --- */}
             <Text style={styles.headerTitle}>{t('leaderboard')}</Text>
-            {/* ---------------------------- */}
             <View style={styles.multiplierContainer}>
               <Qcoin width={20} height={20} style={styles.coinIcon} />
               <Text style={styles.multiplierText}>
-                YOUR BOOST: x{currentUserData ? currentUserData.multiplier.toFixed(1) : '1.0'}
+                YOUR BOOST: x{currentUserData ? getUserMultiplier(currentUserData).toFixed(1) : '1.0'}
               </Text>
             </View>
           </View>
@@ -149,8 +141,9 @@ const fetchLeaderboard = async () => {
               key={user.id}
               rank={index + 1}
               name={user.full_name}
-              score={user.finalScore}
-              multiplier={user.multiplier}
+              // FIX: Use 'coins' directly since we are querying the profiles table now
+              score={user.coins} 
+              multiplier={getUserMultiplier(user)}
               isUser={user.id === currentUserData?.id}
             />
           ))}

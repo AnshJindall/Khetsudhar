@@ -3,14 +3,14 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 import { DEFAULT_LANGUAGE } from '@/constants/translations';
@@ -18,6 +18,8 @@ import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useTranslation } from '@/hooks/useTranslation';
 import { supabase } from '@/utils/supabase';
 
+// Assets
+import Coin from '../assets/images/coin.svg';
 import LeaderBoard from '../assets/images/LeaderBoard.svg';
 import Lessons from '../assets/images/Lessons.svg';
 import MarketPrice from '../assets/images/market-price.svg';
@@ -27,46 +29,18 @@ import Reward from '../assets/images/Reward.svg';
 
 const PIXEL_FONT = 'monospace';
 
-// --- HUB BUTTON COMPONENT ---
-const HubButton = ({ icon, label, onPress, style, textStyle }: any) => (
-  <TouchableOpacity style={[styles.buttonBase, style]} onPress={onPress}>
-    {icon}
-    <Text style={[styles.buttonText, textStyle]}>{label}</Text>
-  </TouchableOpacity>
-);
-
-// --- PROGRESS BAR COMPONENT (Fixes Type Incompatibility Error) ---
-const ProgressBar = ({ completed, total }: { completed: number; total: number }) => {
-  const progress = total > 0 ? completed / total : 0;
-  const barWidth = `${progress * 100}%`; 
-  
-  return (
-    <View style={progressStyles.container}>
-      <View style={progressStyles.barBackground}>
-        <View style={[progressStyles.barFill, { width: 75 }]} /> 
-      </View>
-      <Text style={progressStyles.text}>{completed} / {total} {total > 1 ? 'Lessons' : 'Lesson'} Completed</Text>
-    </View>
-  );
-};
-
-// --- TIP OF THE DAY COMPONENT ---
-const TipOfTheDay = ({ tipText }: { tipText: string }) => {
-    return (
-        <View style={styles.tipContainer}>
-            <FontAwesome5 name="lightbulb" size={16} color="#FFD700" style={{ marginRight: 10 }} />
-            <Text style={styles.tipText} numberOfLines={2}>
-                {tipText}
-            </Text>
-        </View>
-    );
-};
-
-// --- DATA TYPES (Fixes Element implicitly has an 'any' type error) ---
+// --- TYPES ---
 interface QuestDetail {
     id: number;
     title: string;
     description: string;
+}
+
+interface LessonDetail {
+    id: number;
+    title: string;
+    description: string;
+    sequence: number;
 }
 
 interface ActiveQuestData {
@@ -79,36 +53,39 @@ type UserProgress = {
     completed_lessons: number;
     user_coins: number; 
     active_quest: QuestDetail | null;
+    next_lesson: LessonDetail | null; // Added this
 };
 
-// --- FETCHER FUNCTION: User Progress & Active Quest (Fixes Block-Scoped Variable Error) ---
+// --- DATA FETCHERS ---
 const fetchUserProgress = async (): Promise<UserProgress> => {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     
-    if (!userId) {
-        return { total_lessons: 0, completed_lessons: 0, user_coins: 0, active_quest: null };
-    }
+    if (!userId) return { total_lessons: 0, completed_lessons: 0, user_coins: 0, active_quest: null, next_lesson: null };
 
-    // 1. Fetch Profile Data (Coins) - Fetched for backend consistency
+    // 1. Coins
     const { data: profileData } = await supabase.from('profiles').select('coins').eq('id', userId).single();
     const user_coins = profileData?.coins || 0;
 
-    // 2. Fetch Lesson Progress
+    // 2. Lessons Counts
     const { count: total_lessons } = await supabase.from('lessons').select('*', { count: 'exact', head: true });
     const { count: completed_lessons } = await supabase.from('user_lessons').select('*', { count: 'exact', head: true }).eq('user_id', userId);
-
-    // 3. Fetch Active Quest
-    let active_quest: QuestDetail | null = null;
     
-    const { data: userQuests, error: questError } = await supabase
-        .from('user_quests')
-        .select('status, quest:quests(id, title, description)') as { data: ActiveQuestData[] | null; error: any };
+    // 3. Get Next Lesson Details
+    const nextSeq = (completed_lessons || 0) + 1;
+    const { data: nextLessonData } = await supabase
+        .from('lessons')
+        .select('id, title, description, sequence')
+        .eq('sequence', nextSeq)
+        .maybeSingle();
 
-    if (questError) {
-        console.error("Error fetching active quest:", questError);
-    } else if (userQuests && userQuests.length > 0) {
-        // Fix: Accessing the nested quest object after casting/defining ActiveQuestData
+    // 4. Quest
+    let active_quest: QuestDetail | null = null;
+    const { data: userQuests } = await supabase
+        .from('user_quests')
+        .select('status, quest:quests(id, title, description)') as { data: ActiveQuestData[] | null };
+
+    if (userQuests && userQuests.length > 0) {
         active_quest = userQuests[0].quest;
     }
     
@@ -116,193 +93,268 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
         total_lessons: total_lessons || 0,
         completed_lessons: completed_lessons || 0,
         user_coins,
-        active_quest
+        active_quest,
+        next_lesson: nextLessonData
     };
 };
 
-// --- DUMMY TIP FETCHER ---
 const fetchTipOfTheDay = async (lang: string) => {
-    return "Remember to check the market prices before selling your produce for the best value!";
+    return "Tip: Using organic compost can increase soil water retention by up to 30%!";
 };
 
+// --- COMPONENTS ---
 
+const Header = ({ coins }: { coins: number }) => (
+    <View style={styles.header}>
+        <View>
+            <Text style={styles.headerGreeting}>WELCOME BACK,</Text>
+            <Text style={styles.headerName}>FARMER</Text>
+        </View>
+        <View style={styles.coinPill}>
+            <Coin width={20} height={20} />
+            <Text style={styles.coinText}>{coins.toLocaleString()}</Text>
+        </View>
+    </View>
+);
+
+const HubButton = ({ icon, label, onPress, style, textStyle }: any) => (
+  <TouchableOpacity style={[styles.buttonBase, style]} onPress={onPress}>
+    <View style={styles.iconContainer}>{icon}</View>
+    <Text style={[styles.buttonText, textStyle]}>{label}</Text>
+  </TouchableOpacity>
+);
+
+// --- MAIN SCREEN ---
 export default function DashboardScreen() {
-  const router = useRouter();
-  const { t, language, isLoading: isTransLoading } = useTranslation(); 
+  const router = useRouter();
+  const { t, language, isLoading: isTransLoading } = useTranslation(); 
     
-  // 1. Fetch User Progress (Lessons, Coins, Active Quest)
-  const { 
-    data: progressData, 
-    loading: progressLoading, 
-    refresh: refreshProgress, 
-    refreshing: refreshingProgress 
-} = useCachedQuery(
-    `dashboard_progress_data`,
-    fetchUserProgress
-  );
+  const { data: progressData, loading: progressLoading, refresh: refreshProgress, refreshing } = useCachedQuery(
+    `dashboard_progress_data`,
+    fetchUserProgress
+  );
     
-  // 2. Fetch Tip of the Day
-  const { data: tipText, loading: tipLoading, refresh: refreshTip } = useCachedQuery(
-    `dashboard_tip_of_day_${language || DEFAULT_LANGUAGE}`,
-    () => fetchTipOfTheDay(language || DEFAULT_LANGUAGE)
-  );
+  const { data: tipText, refresh: refreshTip } = useCachedQuery(
+    `dashboard_tip_of_day_${language || DEFAULT_LANGUAGE}`,
+    () => fetchTipOfTheDay(language || DEFAULT_LANGUAGE)
+  );
 
-  const isScreenLoading = (progressLoading || tipLoading || isTransLoading) && !progressData;
-    
-  // Combined Refresh function
   const handleRefresh = async () => {
     await Promise.all([refreshProgress(), refreshTip()]);
   };
     
-  if (isScreenLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>
-      </SafeAreaView>
-    );
-  }
+  if ((progressLoading || isTransLoading) && !progressData) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </SafeAreaView>
+    );
+  }
     
-  const completed = progressData?.completed_lessons || 0;
-  const total = progressData?.total_lessons || 0;
-  const activeQuest = progressData?.active_quest;
+  const completed = progressData?.completed_lessons || 0;
+  const total = progressData?.total_lessons || 0;
+  const activeQuest = progressData?.active_quest;
+  const nextLesson = progressData?.next_lesson;
+  const coins = progressData?.user_coins || 0;
 
+  // Progress Bar Calculation
+  const progressPercent = total > 0 ? (completed / total) * 100 : 0;
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={<RefreshControl refreshing={refreshingProgress} onRefresh={handleRefresh} tintColor="#388e3c" />}
-      >
-        
-        {/* ACTIVE QUEST CARD */}
-        <View style={styles.currentLessonContainer}>
-          <MascotFarmer width={120} height={120} style={styles.mascot} />
-          
-          {activeQuest ? (
-            <TouchableOpacity
-              style={[styles.currentLessonCardBase, styles.activeQuestCardGlow]}
-              onPress={() => { router.push({ pathname: '/quest-details', params: { id: activeQuest.id.toString() } }); }}
-             >
-              
-              <View style={styles.lessonInfo}>
-                {/* Using 'as never' to bypass TranslationKeys type check */}
-                <Text style={styles.currentQuestTitle}>
-                  {t('active_quest' as never) || 'ACTIVE QUEST'}
-                </Text>
-                
-                <View style={styles.lessonRow}>
-                    <Quest width={40} height={40} style={styles.questIcon} />
-                  
-                  <View style={styles.lessonDetails}>
-                    <Text style={styles.lessonTitle} numberOfLines={2}>{activeQuest.title}</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.lessonDescription} numberOfLines={2}>{activeQuest.description}</Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.currentLessonCardBase, {backgroundColor: '#333'}]}>
-                {/* Using 'as never' to bypass TranslationKeys type check */}
-                <Text style={{ color: 'white' }}>{t('no_active_quest' as never) || 'No active quests right now.'}</Text>
-            </View>
-          )}
-        </View>
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      
+      <Header coins={coins} />
+
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#388e3c" />}
+        showsVerticalScrollIndicator={false}
+      >
+        
+        {/* HERO CARD: Either Active Quest OR Current Lesson */}
+        <View style={styles.heroContainer}>
+            <MascotFarmer width={110} height={110} style={styles.mascot} />
+            
+            {activeQuest ? (
+                // OPTION A: Show Active Quest
+                <TouchableOpacity
+                  style={[styles.heroCard, styles.questCard]}
+                  onPress={() => router.push({ pathname: '/quest-details', params: { id: activeQuest.id.toString() } })}
+                >
+                  <View style={styles.heroBadge}>
+                     <Text style={styles.heroBadgeText}>ACTIVE MISSION</Text>
+                  </View>
+                  <View style={styles.heroContent}>
+                      <View style={{flex: 1}}>
+                        <Text style={styles.heroTitle}>{activeQuest.title}</Text>
+                        <Text style={styles.heroDesc} numberOfLines={2}>{activeQuest.description}</Text>
+                      </View>
+                      <Quest width={40} height={40} />
+                  </View>
+                </TouchableOpacity>
+            ) : nextLesson ? (
+                // OPTION B: Show Current Lesson (No Active Quest)
+                <TouchableOpacity
+                  style={[styles.heroCard, styles.lessonHeroCard]}
+                  onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: nextLesson.id.toString() } })}
+                >
+                   <View style={[styles.heroBadge, { backgroundColor: '#388e3c' }]}>
+                     <Text style={styles.heroBadgeText}>CONTINUE LEARNING</Text>
+                  </View>
+                  <View style={styles.heroContent}>
+                      <View style={{flex: 1}}>
+                        <Text style={styles.heroTitle}>LESSON {nextLesson.sequence}: {nextLesson.title}</Text>
+                        <Text style={styles.heroDesc} numberOfLines={2}>Tap to start your next lesson.</Text>
+                      </View>
+                      <Lessons width={40} height={40} />
+                  </View>
+                </TouchableOpacity>
+            ) : (
+                // OPTION C: All Done
+                 <View style={[styles.heroCard, { backgroundColor: '#333' }]}>
+                    <Text style={styles.heroTitle}>ALL CAUGHT UP!</Text>
+                    <Text style={styles.heroDesc}>You have completed all lessons.</Text>
+                 </View>
+            )}
+        </View>
 
         {/* PROGRESS BAR */}
-        <ProgressBar completed={completed} total={total} />
+        <View style={styles.progressSection}>
+             <View style={styles.progressBg}>
+                <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+             </View>
+             <Text style={styles.progressText}>{completed} / {total} LESSONS COMPLETED</Text>
+        </View>
         
         {/* TIP OF THE DAY */}
-        {tipText && <TipOfTheDay tipText={tipText} />}
+        {tipText && (
+            <View style={styles.tipContainer}>
+                <FontAwesome5 name="lightbulb" size={14} color="#FFD700" />
+                <Text style={styles.tipText}>{tipText}</Text>
+            </View>
+        )}
 
-        {/* Grid Buttons */}
-        <View style={styles.gridContainer}>
-          <View style={styles.gridRow}>
-            <HubButton label={t('monthly_quests')} icon={<Quest width={80} height={80} />} onPress={() => router.push('/quests')} style={[styles.buttonSquare, styles.questsButton]} textStyle={styles.squareButtonText} />
-            <HubButton label={t('leaderboard')} icon={<LeaderBoard width={80} height={80} />} onPress={() => router.push('/leaderboard')} style={[styles.buttonSquare, styles.leaderboardButton]} textStyle={styles.squareButtonText} />
-          </View>
-          <View style={styles.gridRow}>
-            <HubButton label={t('rewards')} icon={<Reward width={80} height={80} />} onPress={() => router.push('/reward-root')} style={[styles.buttonRect, styles.rewardsButton]} textStyle={styles.rectButtonText} />
-          </View>
-          <View style={styles.gridRow}>
-            <HubButton label={t('lessons')} icon={<Lessons width={80} height={80} />} onPress={() => router.push({ pathname: '/lessons', params: { lesson_completed: '0' } })} style={[styles.buttonRect, styles.lessonsButton]} textStyle={styles.rectButtonText} />
-          </View>
-          <View style={styles.gridRow}>
-            <HubButton label={t('market_prices')} icon={<MarketPrice width={80} height={80} />} onPress={() => router.push('/marketPrices')} style={[styles.buttonRect, styles.marketButton]} textStyle={styles.rectButtonText} />
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+        {/* HUB GRID (Restored Colors) */}
+        <View style={styles.gridContainer}>
+          <View style={styles.gridRow}>
+            <HubButton 
+                label={t('monthly_quests')} 
+                icon={<Quest width={60} height={60} />} 
+                onPress={() => router.push('/quests')} 
+                style={[styles.buttonSquare, styles.questsButton]} 
+                textStyle={styles.squareButtonText} 
+            />
+            <HubButton 
+                label={t('leaderboard')} 
+                icon={<LeaderBoard width={60} height={60} />} 
+                onPress={() => router.push('/leaderboard')} 
+                style={[styles.buttonSquare, styles.leaderboardButton]} 
+                textStyle={styles.squareButtonText} 
+            />
+          </View>
+
+          <View style={styles.gridRow}>
+            <HubButton 
+                label={t('rewards')} 
+                icon={<Reward width={50} height={50} />} 
+                onPress={() => router.push('/reward-root')} 
+                style={[styles.buttonRect, styles.rewardsButton]} 
+                textStyle={styles.rectButtonText} 
+            />
+          </View>
+          
+          <View style={styles.gridRow}>
+            <HubButton 
+                label={t('lessons')} 
+                icon={<Lessons width={50} height={50} />} 
+                onPress={() => router.push({ pathname: '/lessons', params: { lesson_completed: '0' } })} 
+                style={[styles.buttonRect, styles.lessonsButton]} 
+                textStyle={styles.rectButtonText} 
+            />
+          </View>
+          
+          <View style={styles.gridRow}>
+            <HubButton 
+                label={t('market_prices')} 
+                icon={<MarketPrice width={50} height={50} />} 
+                onPress={() => router.push('/marketPrices')} 
+                style={[styles.buttonRect, styles.marketButton]} 
+                textStyle={styles.rectButtonText} 
+            />
+          </View>
+        </View>
+
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1C1C1E' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContainer: { padding: 16, paddingBottom: 40 },
-  offlineBanner: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: '#C62828', padding: 8, borderRadius: 8, marginBottom: 20 },
-  offlineText: { color: 'white', fontWeight: 'bold', marginLeft: 8 },
-  
-    // --- Tip Styles ---
-    tipContainer: { backgroundColor: 'rgba(255, 255, 0, 0.1)', padding: 12, borderRadius: 10, marginHorizontal: 8, marginBottom: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#FFD700' },
-    tipText: { color: '#E0E0E0', fontSize: 13, flexShrink: 1 },
-    // ------------------
+  container: { flex: 1, backgroundColor: '#121212' },
+  loadingContainer: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
+  
+  // Header
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 24, paddingTop: 20, paddingBottom: 15, backgroundColor: '#121212',
+  },
+  headerGreeting: { color: '#888', fontSize: 10, fontFamily: PIXEL_FONT, letterSpacing: 1 },
+  headerName: { color: 'white', fontSize: 22, fontFamily: PIXEL_FONT, fontWeight: 'bold' },
+  coinPill: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#333'
+  },
+  coinText: { color: '#FFD700', marginLeft: 8, fontWeight: 'bold', fontFamily: PIXEL_FONT },
 
-  currentLessonContainer: { marginBottom: 16, paddingHorizontal: 8 },
-  currentLessonCardBase: { backgroundColor: '#222', borderRadius: 20, padding: 15, paddingLeft: 100, minHeight: 130, justifyContent: 'center' },
-  activeQuestCardGlow: { borderColor: '#4A148C', borderWidth: 1, shadowColor: '#4A148C', shadowOpacity: 0.8, shadowRadius: 10, elevation: 10 },
-  
-  mascot: { position: 'absolute', left: 0, top: -20, zIndex: 5 },
-  lessonInfo: { flex: 1 },
-  currentQuestTitle: { color: '#9E9E9E', fontSize: 12, fontFamily: PIXEL_FONT, fontWeight: 'bold', marginBottom: 4 },
-  lessonRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  questIcon: { marginRight: 10 },
-  lessonDetails: { flex: 1 },
-  lessonTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  lessonDescription: { color: '#B0B0B0', fontSize: 12 },
-  
-  // Grid
-  gridContainer: { width: '100%' },
-  gridRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  buttonBase: { borderRadius: 20, borderWidth: 2, justifyContent: 'center', alignItems: 'center', padding: 10, marginHorizontal: 8 },
-  buttonSquare: { flex: 1, aspectRatio: 1 },
-  buttonRect: { flex: 1, height: 120, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  buttonText: { color: 'white', fontWeight: 'bold', fontFamily: PIXEL_FONT },
-  squareButtonText: { fontSize: 14, marginTop: 10, textAlign: 'center' },
-  rectButtonText: { fontSize: 20, marginLeft: 16 },
-  questsButton: { backgroundColor: 'rgba(74, 20, 140, 0.5)', borderColor: '#4A148C' },
-  leaderboardButton: { backgroundColor: 'rgba(253, 216, 53, 0.2)', borderColor: '#FDD835' },
-  rewardsButton: { backgroundColor: 'rgba(194, 24, 91, 0.5)', borderColor: '#C2185B' },
-  lessonsButton: { backgroundColor: 'rgba(56, 142, 60, 0.5)', borderColor: '#388e3c' },
-  marketButton: { backgroundColor: 'rgba(2, 119, 189, 0.5)', borderColor: '#0277BD' },
-});
+  scrollContainer: { paddingHorizontal: 20, paddingBottom: 50 },
 
-// --- Progress Bar Styles ---
-const progressStyles = StyleSheet.create({
-    container: {
-        width: '100%',
-        alignItems: 'center',
-        marginVertical: 10,
-        paddingHorizontal: 8
-    },
-    barBackground: {
-        width: '100%',
-        height: 10,
-        backgroundColor: '#333',
-        borderRadius: 5,
-        overflow: 'hidden',
-        marginBottom: 8,
-    },
-    barFill: {
-        height: '100%',
-        backgroundColor: '#388e3c', // Green fill
-        borderRadius: 5,
-    },
-    text: {
-        color: '#B0B0B0',
-        fontSize: 12,
-        fontFamily: PIXEL_FONT,
-        fontWeight: 'bold',
-    },
+  // Hero Card
+  heroContainer: { marginBottom: 20, marginTop: 10 },
+  mascot: { position: 'absolute', right: 10, top: -25, zIndex: 10 },
+  heroCard: {
+    borderRadius: 20, padding: 20, minHeight: 140, justifyContent: 'center',
+    borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5
+  },
+  questCard: { backgroundColor: '#2E1A47', borderColor: '#7B1FA2', shadowColor: '#7B1FA2' }, // Dark Purple
+  lessonHeroCard: { backgroundColor: '#1B3E20', borderColor: '#388E3C', shadowColor: '#388E3C' }, // Dark Green
+
+  heroBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
+  heroBadgeText: { color: 'white', fontSize: 10, fontWeight: 'bold', fontFamily: PIXEL_FONT },
+  heroContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 80 }, // Padding for Mascot
+  heroTitle: { color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 5, lineHeight: 24 },
+  heroDesc: { color: '#CCC', fontSize: 12 },
+
+  // Progress Bar
+  progressSection: { marginBottom: 20 },
+  progressBg: { height: 8, backgroundColor: '#333', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+  progressFill: { height: '100%', backgroundColor: '#4CAF50', borderRadius: 4 },
+  progressText: { color: '#888', fontSize: 10, fontFamily: PIXEL_FONT, textAlign: 'center' },
+
+  // Tip
+  tipContainer: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    padding: 12, borderRadius: 12, marginBottom: 25, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.3)'
+  },
+  tipText: { color: '#FFE082', fontSize: 12, marginLeft: 10, flex: 1, fontStyle: 'italic' },
+
+  // Grid
+  gridContainer: { width: '100%' },
+  gridRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  
+  buttonBase: { borderRadius: 20, borderWidth: 1, justifyContent: 'center', alignItems: 'center', padding: 10 },
+  buttonSquare: { flex: 1, aspectRatio: 1, marginHorizontal: 5 },
+  buttonRect: { flex: 1, height: 100, flexDirection: 'row', justifyContent: 'flex-start', paddingLeft: 30 },
+  
+  iconContainer: { marginBottom: 10 },
+  buttonText: { color: 'white', fontWeight: 'bold', fontFamily: PIXEL_FONT },
+  squareButtonText: { fontSize: 14, textAlign: 'center', marginTop: 5 },
+  rectButtonText: { fontSize: 18, marginLeft: 20 },
+
+  // Colors (The ones you liked!)
+  questsButton: { backgroundColor: 'rgba(74, 20, 140, 0.4)', borderColor: '#7B1FA2' }, // Purple
+  leaderboardButton: { backgroundColor: 'rgba(255, 143, 0, 0.25)', borderColor: '#FF8F00' }, // Amber/Yellow
+  rewardsButton: { backgroundColor: 'rgba(194, 24, 91, 0.4)', borderColor: '#E91E63' }, // Pink
+  lessonsButton: { backgroundColor: 'rgba(56, 142, 60, 0.4)', borderColor: '#43A047' }, // Green
+  marketButton: { backgroundColor: 'rgba(2, 119, 189, 0.4)', borderColor: '#039BE5' }, // Blue
 });

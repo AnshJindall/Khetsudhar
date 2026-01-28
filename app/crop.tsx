@@ -1,4 +1,6 @@
+import { useTranslation } from '@/hooks/useTranslation';
 import { supabase } from '@/utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // <--- Added
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -11,8 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-import { useTranslation } from '@/hooks/useTranslation';
 
 // Define the crop data
 const CROPS = [
@@ -31,21 +31,28 @@ export default function CropScreen() {
   const router = useRouter();
   const { t, isLoading: isTransLoading } = useTranslation(); 
 
-const handleConfirm = async () => { // Make async
+  const handleConfirm = async () => { 
     if (selectedCrop) {
-      // 2. Save crop to DB
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ selected_crop: selectedCrop }) // Ensure column exists in DB
-          .eq('id', session.user.id);
+      try {
+        // 1. Save crop to Local Storage for Onboarding Check
+        await AsyncStorage.setItem('onboarding_crop', selectedCrop);
 
-        if (error) console.error('Error saving crop:', error);
+        // 2. (Optional) Save crop to DB if logged in
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase
+            .from('profiles')
+            .update({ selected_crop: selectedCrop })
+            .eq('id', session.user.id);
+        }
+
+        // 3. Navigate to Step 3: First Quest (ID: 1)
+        // Make sure Quest 1 exists in your Supabase 'quests' table!
+        router.replace({ pathname: '/quest-details', params: { id: '1' } }); 
+
+      } catch (error) {
+        console.error('Error saving crop:', error);
       }
-
-      router.push('/lessons'); 
     }
   };
 
@@ -60,11 +67,9 @@ const handleConfirm = async () => { // Make async
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Title Section - USE TRANSLATION */}
         <Text style={styles.title}>{t('choose_crop')}</Text>
         <Text style={styles.subtitle}>{t('choose_your_crop_in_hindi')}</Text>
 
-        {/* Crop Grid */}
         <View style={styles.gridContainer}>
           {CROPS.map((crop) => (
             <TouchableOpacity
@@ -80,10 +85,8 @@ const handleConfirm = async () => { // Make async
           ))}
         </View>
 
-        {/* Spacer View to push confirm button to bottom */}
         <View style={{ flex: 1 }} />
 
-        {/* Confirm Button - USE TRANSLATION */}
         <TouchableOpacity
           style={[
             styles.confirmButton,
@@ -99,83 +102,18 @@ const handleConfirm = async () => { // Make async
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#151718', // Dark background
-  },
-  loadingContainer: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#151718' 
-  },
-  container: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 30,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: '#B0B0B0',
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    width: '100%',
-    maxWidth: 400,
-  },
-  cropButton: {
-    width: '48%', // Two columns with a small gap
-    backgroundColor: '#333333',
-    borderRadius: 15,
-    padding: 10,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: '#333333',
-  },
-  cropButtonSelected: {
-    borderColor: '#388e3c', // Green highlight
-  },
-  cropImage: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
-  },
-  cropName: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  confirmButton: {
-    width: '100%',
-    maxWidth: 400,
-    paddingVertical: 16,
-    borderRadius: 30,
-    marginTop: 20,
-  },
-  confirmButtonDisabled: {
-    backgroundColor: '#555555',
-  },
-  confirmButtonActive: {
-    backgroundColor: '#388e3c',
-  },
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  safeArea: { flex: 1, backgroundColor: '#151718' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' },
+  container: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 20, paddingTop: 30, paddingBottom: 30 },
+  title: { color: '#FFFFFF', fontSize: 22, fontWeight: 'bold', textAlign: 'center' },
+  subtitle: { color: '#B0B0B0', fontSize: 18, textAlign: 'center', marginBottom: 20 },
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', maxWidth: 400 },
+  cropButton: { width: '48%', backgroundColor: '#333333', borderRadius: 15, padding: 10, alignItems: 'center', marginBottom: 15, borderWidth: 2, borderColor: '#333333' },
+  cropButtonSelected: { borderColor: '#388e3c' },
+  cropImage: { width: 100, height: 100, marginBottom: 10 },
+  cropName: { color: '#FFFFFF', fontSize: 16, fontWeight: '500', textAlign: 'center' },
+  confirmButton: { width: '100%', maxWidth: 400, paddingVertical: 16, borderRadius: 30, marginTop: 20 },
+  confirmButtonDisabled: { backgroundColor: '#555555' },
+  confirmButtonActive: { backgroundColor: '#388e3c' },
+  confirmButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
 });

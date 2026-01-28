@@ -70,7 +70,11 @@ export type TranslationKeys =
   | 'syncing'
   | 'no_data'
   | 'no_crops'
-  | 'avg_mandi_price';
+  | 'avg_mandi_price'
+  // --- MISSING KEYS FIXED ---
+  | 'mission_complete'
+  | 'great_job'
+  | 'quest_complete';
 
 // Define the structure of the translations
 type Translations = Record<TranslationKeys, string>;
@@ -81,7 +85,7 @@ interface LanguageMap {
 }
 
 const translations: LanguageMap = {
-  // English (en) - Default Fallback
+  // 1. English (en)
   en: {
     choose_language: 'CHOOSE YOUR LANGUAGE',
     choose_your_language_in_hindi: 'Choose your language',
@@ -140,8 +144,6 @@ const translations: LanguageMap = {
     claim_reward: 'CLAIM REWARD',
     completed: 'COMPLETED',
     completed_lesson_title: 'LESSON COMPLETED!',
-    
-    // --- NEW KEYS ---
     offline_mode: "Offline Mode",
     save: "SAVE",
     saving: "SAVING...",
@@ -154,9 +156,13 @@ const translations: LanguageMap = {
     syncing: "Syncing...",
     no_data: "No data yet. Pull to refresh!",
     no_crops: "No crops found.",
-    avg_mandi_price: "AVG. MANDI PRICE"
+    avg_mandi_price: "AVG. MANDI PRICE",
+    mission_complete: 'MISSION COMPLETE',
+    great_job: 'You have successfully completed the learning module.',
+    quest_complete: 'Quest Complete'
   },
-  // Hindi (hi)
+
+  // 2. Hindi (hi)
   hi: {
     choose_language: 'अपनी भाषा चुनें',
     choose_your_language_in_hindi: 'अपनी भाषा चुनें',
@@ -215,8 +221,6 @@ const translations: LanguageMap = {
     claim_reward: 'इनाम लें',
     completed: 'पूरा किया',
     completed_lesson_title: 'पाठ पूरा हुआ!',
-    
-    // --- NEW KEYS ---
     offline_mode: "ऑफ़लाइन मोड",
     save: "सहेजें",
     saving: "सहेजा जा रहा है...",
@@ -229,9 +233,13 @@ const translations: LanguageMap = {
     syncing: "सिंक हो रहा है...",
     no_data: "अभी तक कोई डेटा नहीं। रीफ्रेश करें!",
     no_crops: "कोई फसल नहीं मिली।",
-    avg_mandi_price: "औसत मंडी भाव"
+    avg_mandi_price: "औसत मंडी भाव",
+    mission_complete: 'मिशन पूरा हुआ',
+    great_job: 'आपने सीखने का मॉड्यूल सफलतापूर्वक पूरा कर लिया है।',
+    quest_complete: 'मिशन पूरा'
   },
-  // Punjabi (pa)
+
+  // 3. Punjabi (pa)
   pa: {
     choose_language: 'APNI BHASHA CHUNO',
     choose_your_language_in_hindi: 'Apni Bhasha Chuno',
@@ -290,8 +298,6 @@ const translations: LanguageMap = {
     claim_reward: 'INAAM LABHO',
     completed: 'PURA HO GAYA',
     completed_lesson_title: 'PAATH PURA HO GAYA!',
-    
-    // --- NEW KEYS ---
     offline_mode: "ਔਫਲਾਈਨ ਮੋਡ",
     save: "ਸੰਭਾਲੋ",
     saving: "ਸੰਭਾਲਿਆ ਜਾ ਰਿਹਾ ਹੈ...",
@@ -304,7 +310,87 @@ const translations: LanguageMap = {
     syncing: "ਸਿੰਕ ਹੋ ਰਿਹਾ ਹੈ...",
     no_data: "ਅਜੇ ਕੋਈ ਡਾਟਾ ਨਹੀਂ। ਰੀਫ੍ਰੈਸ਼ ਕਰੋ!",
     no_crops: "ਕੋਈ ਫਸਲ ਨਹੀਂ ਮਿਲੀ।",
-    avg_mandi_price: "ਔਸਤ ਮੰਡੀ ਮੁੱਲ"
+    avg_mandi_price: "ਔਸਤ ਮੰਡੀ ਮੁੱਲ",
+    mission_complete: 'ਮਿਸ਼ਨ ਪੂਰਾ',
+    great_job: 'ਤੁਸੀਂ ਸਫਲਤਾਪੂਰਵਕ ਪਾਠ ਪੂਰਾ ਕਰ ਲਿਆ ਹੈ।',
+    quest_complete: 'ਮਿਸ਼ਨ ਪੂਰਾ'
+  },
+
+  // 4. Malayalam (ml)
+  ml: {
+    choose_language: 'ഭാഷ തിരഞ്ഞെടുക്കുക',
+    choose_your_language_in_hindi: 'Bhasha Thiranjedukkuka',
+    choose_crop: 'വിള തിരഞ്ഞെടുക്കുക',
+    choose_your_crop_in_hindi: 'Vila Thiranjedukkuka',
+    confirm: 'സ്ഥിരീകരിക്കുക',
+    monthly_quests: 'ദൗത്യങ്ങൾ',
+    leaderboard: 'ലീഡർബോർഡ്',
+    rewards: 'സമ്മാനങ്ങൾ',
+    lessons: 'പാഠങ്ങൾ',
+    market_prices: 'വിപണി വില',
+    current_leaderboard_position: 'റാങ്കിംഗ്',
+    available_coins: 'കൈവശമുള്ള കോയിനുകൾ',
+    unlocked: 'തുറന്നവ',
+    rewards_tree: 'റിവാർഡ് ട്രീ',
+    username: 'ഉപയോക്തൃനാമം',
+    password: 'പാസ്‌വേഡ്',
+    login: 'ലോഗിൻ',
+    logging_in: 'ലോഗിൻ ചെയ്യുന്നു...',
+    signup: 'സൈൻ അപ്പ്',
+    create_one: 'പുതിയത് ഉണ്ടാക്കൂ',
+    dont_have_account: "അക്കൗണ്ട് ഇല്ലേ?",
+    already_have_account: "അക്കൗണ്ട് ഉണ്ടോ?",
+    data_note: "കർഷക രജിസ്ട്രി 2025 പ്രകാരം",
+    take_quiz: 'ക്വിസ് എടുക്കുക',
+    take_quiz_to_verify: 'പരിശോധിക്കാൻ ക്വിസ് എടുക്കുക',
+    continue_learning: 'പഠനം തുടരുക',
+    profile: 'പ്രൊഫൈൽ',
+    dashboard: 'ഡാഷ്ബോർഡ്',
+    rewards_tree_title: 'റിവാർഡ് ട്രീ',
+    mission_brief: 'ദൗത്യ വിവരണം',
+    tasks: 'ജോലികൾ',
+    reward_earned: 'നേടിയ സമ്മാനം:',
+    quest_completed: 'ദൗത്യം പൂർത്തിയായി!',
+    scan_at_store: 'Scan to claim',
+    all_india_prices: 'ഇന്ത്യയിലെ വിലകൾ',
+    live_data: 'തത്സമയ വിവരങ്ങൾ',
+    price_source_tip: 'മണ്ടി രേഖകളിൽ നിന്നുള്ള വിലകൾ',
+    price_per_unit: 'യൂണിറ്റ് വില',
+    wealth: 'സമ്പത്ത്',
+    multiplier: 'ഗുണകം',
+    quest_coins: 'ക്വസ്റ്റ് കോയിനുകൾ',
+    land_size: 'ഭൂമിയുടെ വിസ്തീർണ്ണം',
+    sustainability_score: 'സുസ്ഥിരത സ്കോർ',
+    recent_achievements: 'നേട്ടങ്ങൾ',
+    logout: 'ലോഗ് ഔട്ട്',
+    end_session: 'സെഷൻ അവസാനിപ്പിക്കണോ?',
+    knowledge_check: 'അറിവ് പരിശോധന',
+    win_xp: '{xp} XP നേടൂ',
+    question: 'ചോദ്യം',
+    submit_answer: 'ഉത്തരം നൽകുക',
+    try_again: 'വീണ്ടും ശ്രമിക്കുക',
+    excellent_work: 'നന്നായി ചെയ്തു!',
+    not_quite_right: 'ശരിയല്ല',
+    review_lesson: 'പാഠം വീണ്ടും നോക്കുക.',
+    claim_reward: 'സമ്മാനം നേടുക',
+    completed: 'പൂർത്തിയായി',
+    completed_lesson_title: 'പാഠം പൂർത്തിയായി!',
+    offline_mode: "ഓഫ്‌ലൈൻ മോഡ്",
+    save: "സേവ്",
+    saving: "സേവ് ചെയ്യുന്നു...",
+    go_online: "പൂർത്തിയാക്കാൻ ഓൺലൈനിൽ വരിക",
+    completed_btn: "പൂർത്തിയായി ✓",
+    market_pulse: "വിപണി വിവരങ്ങൾ",
+    live_rates: "തത്സമയ നിരക്കുകൾ",
+    search_placeholder: "തിരയുക...",
+    stable: "മാറ്റമില്ല",
+    syncing: "സിങ്ക് ചെയ്യുന്നു...",
+    no_data: "വിവരങ്ങൾ ലഭ്യമല്ല",
+    no_crops: "വിളകൾ ഒന്നും കണ്ടെത്തിയില്ല",
+    avg_mandi_price: "ശരാശരി വില",
+    mission_complete: 'ദൗത്യം പൂർത്തിയായി',
+    great_job: 'നിങ്ങൾ പഠന മൊഡ്യൂൾ വിജയകരമായി പൂർത്തിയാക്കി.',
+    quest_complete: 'ദൗത്യം പൂർത്തിയായി'
   }
 };
 

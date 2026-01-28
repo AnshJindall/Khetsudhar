@@ -1,4 +1,3 @@
-import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -13,7 +12,6 @@ import {
   View
 } from 'react-native';
 
-import { DEFAULT_LANGUAGE } from '@/constants/translations';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useTranslation } from '@/hooks/useTranslation';
 import { supabase } from '@/utils/supabase';
@@ -53,7 +51,7 @@ type UserProgress = {
     completed_lessons: number;
     user_coins: number; 
     active_quest: QuestDetail | null;
-    next_lesson: LessonDetail | null; // Added this
+    next_lesson: LessonDetail | null;
 };
 
 // --- DATA FETCHERS ---
@@ -69,15 +67,49 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
 
     // 2. Lessons Counts
     const { count: total_lessons } = await supabase.from('lessons').select('*', { count: 'exact', head: true });
-    const { count: completed_lessons } = await supabase.from('user_lessons').select('*', { count: 'exact', head: true }).eq('user_id', userId);
     
-    // 3. Get Next Lesson Details
-    const nextSeq = (completed_lessons || 0) + 1;
-    const { data: nextLessonData } = await supabase
-        .from('lessons')
-        .select('id, title, description, sequence')
-        .eq('sequence', nextSeq)
-        .maybeSingle();
+    // 3. Next Lesson Logic
+    // Fetch actual completed lesson IDs to determine the max sequence reliably
+    const { data: userLessons } = await supabase
+        .from('user_lessons')
+        .select('lesson_id')
+        .eq('user_id', userId);
+        
+    const completedIds = userLessons?.map(ul => ul.lesson_id) || [];
+    const completed_lessons = completedIds.length;
+
+    let nextLessonData: LessonDetail | null = null;
+
+    if (completed_lessons > 0) {
+        // Get the sequences of completed lessons
+        const { data: completedSeqsData } = await supabase
+            .from('lessons')
+            .select('sequence')
+            .in('id', completedIds);
+            
+        const maxSeq = completedSeqsData?.reduce((max, current) => Math.max(max, current.sequence), 0) || 0;
+        
+        // Fetch the FIRST lesson that has a sequence GREATER than the max completed
+        const { data: next } = await supabase
+            .from('lessons')
+            .select('id, title, description, sequence')
+            .gt('sequence', maxSeq)
+            .order('sequence', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+            
+        nextLessonData = next;
+    } else {
+        // No lessons completed, fetch the very first one
+        const { data: first } = await supabase
+            .from('lessons')
+            .select('id, title, description, sequence')
+            .order('sequence', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+            
+        nextLessonData = first;
+    }
 
     // 4. Quest
     let active_quest: QuestDetail | null = null;
@@ -96,10 +128,6 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
         active_quest,
         next_lesson: nextLessonData
     };
-};
-
-const fetchTipOfTheDay = async (lang: string) => {
-    return "Tip: Using organic compost can increase soil water retention by up to 30%!";
 };
 
 // --- COMPONENTS ---
@@ -127,20 +155,15 @@ const HubButton = ({ icon, label, onPress, style, textStyle }: any) => (
 // --- MAIN SCREEN ---
 export default function DashboardScreen() {
   const router = useRouter();
-  const { t, language, isLoading: isTransLoading } = useTranslation(); 
+  const { t, isLoading: isTransLoading } = useTranslation(); 
     
   const { data: progressData, loading: progressLoading, refresh: refreshProgress, refreshing } = useCachedQuery(
     `dashboard_progress_data`,
     fetchUserProgress
   );
-    
-  const { data: tipText, refresh: refreshTip } = useCachedQuery(
-    `dashboard_tip_of_day_${language || DEFAULT_LANGUAGE}`,
-    () => fetchTipOfTheDay(language || DEFAULT_LANGUAGE)
-  );
 
   const handleRefresh = async () => {
-    await Promise.all([refreshProgress(), refreshTip()]);
+    await refreshProgress();
   };
     
   if ((progressLoading || isTransLoading) && !progressData) {
@@ -172,29 +195,12 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         
-        {/* HERO CARD: Either Active Quest OR Current Lesson */}
+        {/* HERO CARD: PRIORITY: Lesson -> Quest -> All Caught Up */}
         <View style={styles.heroContainer}>
             <MascotFarmer width={110} height={110} style={styles.mascot} />
             
-            {activeQuest ? (
-                // OPTION A: Show Active Quest
-                <TouchableOpacity
-                  style={[styles.heroCard, styles.questCard]}
-                  onPress={() => router.push({ pathname: '/quest-details', params: { id: activeQuest.id.toString() } })}
-                >
-                  <View style={styles.heroBadge}>
-                     <Text style={styles.heroBadgeText}>ACTIVE MISSION</Text>
-                  </View>
-                  <View style={styles.heroContent}>
-                      <View style={{flex: 1}}>
-                        <Text style={styles.heroTitle}>{activeQuest.title}</Text>
-                        <Text style={styles.heroDesc} numberOfLines={2}>{activeQuest.description}</Text>
-                      </View>
-                      <Quest width={40} height={40} />
-                  </View>
-                </TouchableOpacity>
-            ) : nextLesson ? (
-                // OPTION B: Show Current Lesson (No Active Quest)
+            {nextLesson ? (
+                // OPTION A: Show Current Lesson (Highest Priority)
                 <TouchableOpacity
                   style={[styles.heroCard, styles.lessonHeroCard]}
                   onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: nextLesson.id.toString() } })}
@@ -210,8 +216,25 @@ export default function DashboardScreen() {
                       <Lessons width={40} height={40} />
                   </View>
                 </TouchableOpacity>
+            ) : activeQuest ? (
+                // OPTION B: Show Active Quest (If no lessons left)
+                <TouchableOpacity
+                  style={[styles.heroCard, styles.questCard]}
+                  onPress={() => router.push({ pathname: '/quest-details', params: { id: activeQuest.id.toString() } })}
+                >
+                  <View style={styles.heroBadge}>
+                     <Text style={styles.heroBadgeText}>ACTIVE MISSION</Text>
+                  </View>
+                  <View style={styles.heroContent}>
+                      <View style={{flex: 1}}>
+                        <Text style={styles.heroTitle}>{activeQuest.title}</Text>
+                        <Text style={styles.heroDesc} numberOfLines={2}>{activeQuest.description}</Text>
+                      </View>
+                      <Quest width={40} height={40} />
+                  </View>
+                </TouchableOpacity>
             ) : (
-                // OPTION C: All Done
+                // OPTION C: All Done (Only when no lessons AND no active quest found)
                  <View style={[styles.heroCard, { backgroundColor: '#333' }]}>
                     <Text style={styles.heroTitle}>ALL CAUGHT UP!</Text>
                     <Text style={styles.heroDesc}>You have completed all lessons.</Text>
@@ -226,28 +249,22 @@ export default function DashboardScreen() {
              </View>
              <Text style={styles.progressText}>{completed} / {total} LESSONS COMPLETED</Text>
         </View>
-        
-        {/* TIP OF THE DAY */}
-        {tipText && (
-            <View style={styles.tipContainer}>
-                <FontAwesome5 name="lightbulb" size={14} color="#FFD700" />
-                <Text style={styles.tipText}>{tipText}</Text>
-            </View>
-        )}
 
-        {/* HUB GRID (Restored Colors) */}
+        {/* HUB GRID - Icons Increased in Size */}
         <View style={styles.gridContainer}>
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('monthly_quests')} 
-                icon={<Quest width={60} height={60} />} 
+                // Increased to 75
+                icon={<Quest width={75} height={75} />} 
                 onPress={() => router.push('/quests')} 
                 style={[styles.buttonSquare, styles.questsButton]} 
                 textStyle={styles.squareButtonText} 
             />
             <HubButton 
                 label={t('leaderboard')} 
-                icon={<LeaderBoard width={60} height={60} />} 
+                // Increased to 75
+                icon={<LeaderBoard width={75} height={75} />} 
                 onPress={() => router.push('/leaderboard')} 
                 style={[styles.buttonSquare, styles.leaderboardButton]} 
                 textStyle={styles.squareButtonText} 
@@ -257,7 +274,8 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('rewards')} 
-                icon={<Reward width={50} height={50} />} 
+                // Increased to 65
+                icon={<Reward width={65} height={65} />} 
                 onPress={() => router.push('/reward-root')} 
                 style={[styles.buttonRect, styles.rewardsButton]} 
                 textStyle={styles.rectButtonText} 
@@ -267,7 +285,8 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('lessons')} 
-                icon={<Lessons width={50} height={50} />} 
+                // Increased to 65
+                icon={<Lessons width={65} height={65} />} 
                 onPress={() => router.push({ pathname: '/lessons', params: { lesson_completed: '0' } })} 
                 style={[styles.buttonRect, styles.lessonsButton]} 
                 textStyle={styles.rectButtonText} 
@@ -277,7 +296,8 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('market_prices')} 
-                icon={<MarketPrice width={50} height={50} />} 
+                // Increased to 65
+                icon={<MarketPrice width={65} height={65} />} 
                 onPress={() => router.push('/marketPrices')} 
                 style={[styles.buttonRect, styles.marketButton]} 
                 textStyle={styles.rectButtonText} 
@@ -331,13 +351,6 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: '#4CAF50', borderRadius: 4 },
   progressText: { color: '#888', fontSize: 10, fontFamily: PIXEL_FONT, textAlign: 'center' },
 
-  // Tip
-  tipContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    padding: 12, borderRadius: 12, marginBottom: 25, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.3)'
-  },
-  tipText: { color: '#FFE082', fontSize: 12, marginLeft: 10, flex: 1, fontStyle: 'italic' },
-
   // Grid
   gridContainer: { width: '100%' },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
@@ -351,7 +364,7 @@ const styles = StyleSheet.create({
   squareButtonText: { fontSize: 14, textAlign: 'center', marginTop: 5 },
   rectButtonText: { fontSize: 18, marginLeft: 20 },
 
-  // Colors (The ones you liked!)
+  // Colors
   questsButton: { backgroundColor: 'rgba(74, 20, 140, 0.4)', borderColor: '#7B1FA2' }, // Purple
   leaderboardButton: { backgroundColor: 'rgba(255, 143, 0, 0.25)', borderColor: '#FF8F00' }, // Amber/Yellow
   rewardsButton: { backgroundColor: 'rgba(194, 24, 91, 0.4)', borderColor: '#E91E63' }, // Pink

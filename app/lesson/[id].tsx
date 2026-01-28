@@ -1,9 +1,8 @@
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -24,7 +23,6 @@ interface LessonDetail {
   sequence: number;
   content: string; 
   points: number;
-  theme: string | null;
 }
 
 const fetchLessonDetail = async (idStr: string, lang: string) => {
@@ -34,13 +32,11 @@ const fetchLessonDetail = async (idStr: string, lang: string) => {
     const titleCol = `title_${lang}`;
     const descCol = `description_${lang}`;
     const contentCol = `content_${lang}`;
-    
     const fallbackTitle = `title_${DEFAULT_LANGUAGE}`;
     const fallbackDesc = `description_${DEFAULT_LANGUAGE}`;
     const fallbackContent = `content_${DEFAULT_LANGUAGE}`;
 
-    // 1. Fetch Lesson
-    const { data: lessonRawData, error } = await supabase
+    const { data: lessonRaw, error } = await supabase
         .from('lessons')
         .select('*')
         .eq('id', lessonId)
@@ -48,20 +44,15 @@ const fetchLessonDetail = async (idStr: string, lang: string) => {
     
     if (error) throw error;
 
-    const lessonRaw = lessonRawData as any;
-
-    // Map to standard object
     const lesson: LessonDetail = {
         id: lessonRaw.id,
         sequence: lessonRaw.sequence,
         points: lessonRaw.points,
-        theme: lessonRaw.theme,
         title: lessonRaw[titleCol] || lessonRaw[fallbackTitle] || "Lesson",
         description: lessonRaw[descCol] || lessonRaw[fallbackDesc] || "",
         content: lessonRaw[contentCol] || lessonRaw[fallbackContent] || ""
     };
 
-    // 2. Check Completion
     let isCompleted = false;
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData.session?.user.id) {
@@ -81,9 +72,8 @@ export default function LessonDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, language, isLoading: isTransLoading } = useTranslation();
-  const [isCompleting, setIsCompleting] = useState(false);
 
-  const { data, loading, isOffline, refresh } = useCachedQuery(
+  const { data, loading, isOffline } = useCachedQuery(
     `lesson_detail_${id}_${language || DEFAULT_LANGUAGE}`,
     () => fetchLessonDetail(id!, language || DEFAULT_LANGUAGE)
   );
@@ -91,65 +81,17 @@ export default function LessonDetailScreen() {
   const lesson = data?.lesson;
   const isCompleted = data?.isCompleted;
 
-  const handleComplete = async () => {
-  if (!lesson || isCompleting) return;
-
-  if (lesson.id === 2) {
- router.push({ 
- pathname: '/game/[id]', // MUST point to your new screen folder
- params: { id: lesson.id.toString() } 
-});
- return; // <--- CRITICAL: Stops the function from proceeding
- }
-    setIsCompleting(true);
-    
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-
-      if (userId) {
-          // 1. Mark Lesson as Complete
-          const { error: insertError } = await supabase.from('user_lessons').insert([{ 
-              user_id: userId, 
-              lesson_id: lesson.id, 
-              completed_at: new Date().toISOString() 
-          }]);
-
-          if (insertError) throw insertError;
-          
-          // 2. AWARD COINS & XP (THE NEW LOGIC)
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('coins, xp')
-            .eq('id', userId)
-            .single();
-
-          if (profile) {
-            const newCoins = (profile.coins || 0) + (lesson.points || 0);
-            const newXP = (profile.xp || 0) + 50; // Award 50 XP for reading the content
-
-            await supabase
-              .from('profiles')
-              .update({ coins: newCoins, xp: newXP })
-              .eq('id', userId);
-          }
-      }
-      
-      setIsCompleting(false);
-      refresh();
-      // Navigate to Quiz (where the user earns the main Quest Coin)
-      router.push({ pathname: '/quiz/[id]', params: { id: lesson.id.toString() } });
-
-    } catch (error: any) {
-      console.error("Completion Error:", error);
-      Alert.alert("Error", error.message || "Failed to save progress or award coins.");
-      setIsCompleting(false);
+  const handleTakeQuiz = () => {
+    if (!lesson) return;
+    // Special case for ID 2 (Game) if needed, otherwise normal quiz
+    if (lesson.id === 2) {
+       router.push({ pathname: '/game/[id]', params: { id: lesson.id.toString() } });
+    } else {
+       router.push({ pathname: '/quiz/[id]', params: { id: lesson.id.toString() } });
     }
   };
 
-  const isScreenLoading = (loading || isTransLoading) && !lesson;
-
-  if (isScreenLoading) {
+  if ((loading || isTransLoading) && !lesson) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>;
   }
 
@@ -172,7 +114,6 @@ export default function LessonDetailScreen() {
           <FontAwesome5 name="play" size={40} color="white" />
         </View>
 
-        {/* Content Renderer */}
         <View style={styles.contentContainer}>
             {lesson.content?.replace(/\\n/g, '\n').split('\n').map((line, index) => {
                 const trimmed = line.trim();
@@ -194,15 +135,12 @@ export default function LessonDetailScreen() {
 
         <TouchableOpacity 
           style={[styles.actionButton, (isCompleted || isOffline) && styles.actionButtonCompleted]}
-          onPress={isCompleted ? () => {} : handleComplete}
-          disabled={isCompleted || isCompleting || isOffline}
+          onPress={handleTakeQuiz}
+          disabled={isOffline} 
         >
           <Text style={styles.actionButtonText}>
-           {isCompleting 
-                ? `${t('completed')} ✓` 
-                : (lesson.id === 2 ? "START FARMING" : t('take_quiz')) 
-            }
-        </Text>
+             {isCompleted ? "PRACTICE QUIZ" : (lesson.id === 2 ? "START FARMING" : t('take_quiz'))}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

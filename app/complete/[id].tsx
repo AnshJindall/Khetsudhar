@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -8,39 +9,64 @@ import {
   View,
 } from 'react-native';
 
+import { DEFAULT_LANGUAGE } from '@/constants/translations';
 import { useTranslation } from '@/hooks/useTranslation';
-import { supabase } from '@/utils/supabase'; // Needed for auth check
+import { supabase } from '@/utils/supabase';
 import Checkmark from '../../assets/images/check.svg';
 import Coin from '../../assets/images/coin.svg';
 
-const LESSON_INFO: { [key: string]: any } = {
-  '1': { title: 'Basics of Sustainable Banana Farming', points: 1000 },
-  '2': { title: 'Healthy Soil for Better Plants', points: 1500 },
-  '3': { title: 'Shade and Plant Diversity', points: 1000 },
-  '4': { title: 'Smart Water Use', points: 1500 },
-  '5': { title: 'Natural Pest Control', points: 1000 },
-};
-
 export default function LessonCompleteScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  
+  const [lessonInfo, setLessonInfo] = useState<{ title: string; points: number } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const lesson = LESSON_INFO[id] || { title: 'Lesson Completed', points: 1000 };
+  useEffect(() => {
+    const fetchLessonInfo = async () => {
+      if (!id) return;
+      
+      const lang = language || DEFAULT_LANGUAGE;
+      // Dynamic columns based on language
+      const titleCol = `title_${lang}`;
+      const fallbackTitle = `title_${DEFAULT_LANGUAGE}`;
+
+      const { data, error } = await supabase
+        .from('lessons')
+        .select(`points, ${titleCol}, ${fallbackTitle}`)
+        .eq('id', id)
+        .single();
+
+      if (!error && data) {
+        // @ts-ignore - Supabase types might not perfectly infer dynamic keys
+        const title = data[titleCol] || data[fallbackTitle] || "Lesson Completed";
+        setLessonInfo({
+          title,
+          points: data.points || 0
+        });
+      }
+      setLoading(false);
+    };
+
+    fetchLessonInfo();
+  }, [id, language]);
 
   const handleContinue = async () => {
-    // 1. Check if user is logged in
+    // Check if user is guest (optional, based on your previous logic)
     const { data: { session } } = await supabase.auth.getSession();
     const isGuest = !session;
 
-    // 2. Logic: Only send to Reward/Login if it's Lesson 1 AND they are a Guest
     if (isGuest && id === '1') {
       router.replace({ pathname: '/reward/[id]', params: { id: id } });
     } else {
-      // Otherwise (Logged in user OR different lesson), go to Lessons list
       router.replace('/lessons');
     }
   };
+
+  if (loading) {
+    return <SafeAreaView style={[styles.safeArea, {justifyContent:'center', alignItems:'center'}]}><ActivityIndicator size="large" color="#4CAF50" /></SafeAreaView>;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -48,7 +74,7 @@ export default function LessonCompleteScreen() {
         {/* Top Lesson Title Card */}
         <View style={styles.lessonTitleCard}>
           <Text style={styles.lessonNumber}>{id}</Text>
-          <Text style={styles.lessonTitle}>{lesson.title}</Text>
+          <Text style={styles.lessonTitle}>{lessonInfo?.title}</Text>
         </View>
 
         {/* Main Completion Card */}
@@ -57,18 +83,16 @@ export default function LessonCompleteScreen() {
           <Text style={styles.completeText}>{t('completed_lesson_title')}</Text>
 
           <View style={styles.rewardContainer}>
-            <Text style={styles.rewardTitle}>XP {t('reward_earned').replace(':', '')}</Text>
+            <Text style={styles.rewardTitle}>REWARD</Text>
             <View style={styles.pointsContainer}>
               <Coin width={30} height={30} style={styles.coinIcon} />
-              <Text style={styles.pointsText}>{lesson.points}</Text>
+              <Text style={styles.pointsText}>{lessonInfo?.points}</Text>
             </View>
           </View>
         </View>
 
-        {/* Spacer */}
         <View style={{ flex: 1 }} />
 
-        {/* Continue Button */}
         <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
           <Text style={styles.continueButtonText}>{t('continue_learning')}</Text>
         </TouchableOpacity>
@@ -85,9 +109,9 @@ const styles = StyleSheet.create({
   lessonTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', flex: 1 },
   card: { backgroundColor: '#2E7D32', borderRadius: 20, padding: 20, alignItems: 'center', flexGrow: 1, justifyContent: 'center', borderWidth: 1, borderColor: '#388E3C' },
   checkmark: { marginBottom: 20 },
-  completeText: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: 1, marginBottom: 20, textShadowColor: 'rgba(0, 0, 0, 0.3)', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 1 },
+  completeText: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: 1, marginBottom: 20, textAlign:'center' },
   rewardContainer: { alignItems: 'center' },
-  rewardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '500', fontFamily: 'monospace', textShadowColor: 'rgba(0, 0, 0, 0.2)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 1 },
+  rewardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '500', fontFamily: 'monospace' },
   pointsContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   coinIcon: { marginRight: 10 },
   pointsText: { color: '#FDD835', fontSize: 24, fontWeight: 'bold' },

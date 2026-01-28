@@ -1,5 +1,5 @@
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -21,33 +21,27 @@ import Coin from '../assets/images/coin.svg';
 import Mascot from '../assets/images/Mascot.svg';
 import MascotFarmer from '../assets/images/MascotFarmer.svg';
 
-// --- TYPES ---
 interface LessonData {
   id: number;
   title: string;
   description: string;
   sequence: number;
   points: number;
-  content_path: string | null;
-  theme: string | null;
 }
 
 interface Lesson extends LessonData {
   status: 'current' | 'completed' | 'locked';
 }
 
-// --- FETCHER FUNCTION ---
 const fetchLessonsAndProgress = async (lang: string) => {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
 
-  // Dynamic Columns
   const titleCol = `title_${lang}`;
   const descCol = `description_${lang}`;
   const fallbackTitle = `title_${DEFAULT_LANGUAGE}`;
   const fallbackDesc = `description_${DEFAULT_LANGUAGE}`;
 
-  // 1. Fetch ALL lessons
   const { data: allLessonsRaw, error: lessonsError } = await supabase
     .from('lessons')
     .select('*')
@@ -55,18 +49,16 @@ const fetchLessonsAndProgress = async (lang: string) => {
 
   if (lessonsError) throw lessonsError;
 
-  // Map raw data using 'any' to access dynamic language columns
   const allLessons: LessonData[] = (allLessonsRaw || []).map((l: any) => ({
       id: l.id,
       sequence: l.sequence,
       points: l.points,
-      theme: l.theme,
       title: l[titleCol] || l[fallbackTitle] || "Lesson",
       description: l[descCol] || l[fallbackDesc] || "",
-      content_path: null 
   }));
 
   let completedIds = new Set<number>();
+  let lastCompletedSeq = 0;
   
   if (userId) {
     const { data: completedLessons } = await supabase
@@ -76,15 +68,16 @@ const fetchLessonsAndProgress = async (lang: string) => {
       
     if (completedLessons) {
         completedLessons.forEach(c => completedIds.add(c.lesson_id));
+        
+        // Find the sequence of the *latest* completed lesson
+        const completedSeqs = allLessons
+            .filter(l => completedIds.has(l.id))
+            .map(l => l.sequence);
+            
+        if (completedSeqs.length > 0) {
+            lastCompletedSeq = Math.max(...completedSeqs);
+        }
     }
-  }
-
-  let lastCompletedSeq = 0;
-  if (allLessons.length > 0) {
-      const completedSeqs = allLessons
-        .filter(l => completedIds.has(l.id))
-        .map(l => l.sequence);
-      if (completedSeqs.length > 0) lastCompletedSeq = Math.max(...completedSeqs);
   }
 
   const finalLessons: Lesson[] = allLessons.map(lesson => {
@@ -95,7 +88,8 @@ const fetchLessonsAndProgress = async (lang: string) => {
     } else if (lesson.sequence === lastCompletedSeq + 1) {
       status = 'current';
     } else if (lastCompletedSeq === 0 && lesson.sequence === 1) {
-      status = 'current';
+      // First lesson is current if nothing is completed
+      status = 'current'; 
     }
 
     return { ...lesson, status };
@@ -106,10 +100,8 @@ const fetchLessonsAndProgress = async (lang: string) => {
 
 export default function LessonsScreen() {
   const router = useRouter();
-  const { lesson_completed } = useLocalSearchParams();
   const { t, language, isLoading: isTransLoading } = useTranslation();
 
-  // The key includes 'language', so when language changes, the hook will re-run
   const { data: lessons, loading, isOffline, refresh, refreshing } = useCachedQuery(
     `lessons_list_${language || DEFAULT_LANGUAGE}`, 
     () => fetchLessonsAndProgress(language || DEFAULT_LANGUAGE)
@@ -142,9 +134,7 @@ export default function LessonsScreen() {
       </Text>
       <View style={styles.lessonContent}>
         <Text style={styles.lessonTitle}>{lesson.title}</Text>
-        <Text style={styles.lessonDescription} numberOfLines={2}>
-          {lesson.description}
-        </Text>
+        <Text style={styles.lessonDescription} numberOfLines={2}>{lesson.description}</Text>
         <View style={styles.pointsContainer}>
           <Coin width={24} height={24} style={styles.coinIcon} />
           <Text style={styles.pointsText}>{lesson.points}</Text>
@@ -153,9 +143,7 @@ export default function LessonsScreen() {
     </TouchableOpacity>
   );
 
-  const isScreenLoading = (loading || isTransLoading) && !lessons;
-
-  if (isScreenLoading) {
+  if ((loading || isTransLoading) && !lessons) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#388e3c" /></View>;
   }
 
@@ -172,6 +160,7 @@ export default function LessonsScreen() {
             </View>
         )}
 
+        {/* 1. CURRENT LESSON */}
         {currentLesson && (
           <>
             <View style={styles.currentSection}>
@@ -184,6 +173,7 @@ export default function LessonsScreen() {
           </>
         )}
 
+        {/* 2. UPCOMING */}
         {upcomingLessons.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>UPCOMING LESSONS</Text>
@@ -191,6 +181,7 @@ export default function LessonsScreen() {
           </>
         )}
 
+        {/* 3. COMPLETED (Sorted by most recent sequence) */}
         {completedLessons.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>COMPLETED</Text>

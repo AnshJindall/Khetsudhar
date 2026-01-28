@@ -5,55 +5,58 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 export default function Index() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [nextScreen, setNextScreen] = useState<string>('/language');
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkOnboardingStatus();
+    checkFlow();
   }, []);
 
-  const checkOnboardingStatus = async () => {
+  const checkFlow = async () => {
     try {
-      // --- TEMPORARY: UNCOMMENT THIS LINE TO RESET APP FOR TESTING ---
-      // await AsyncStorage.clear(); 
-      // ---------------------------------------------------------------
+      // 1. Check Session
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
 
-      // 1. Check if user is already logged in (Skip everything)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setNextScreen('/dashboard');
-        return;
-      }
-
-      // 2. Check Local Progress
-      const lang = await AsyncStorage.getItem('onboarding_lang');
-      const crop = await AsyncStorage.getItem('onboarding_crop');
-      const rewardClaimed = await AsyncStorage.getItem('onboarding_reward_claimed');
-
-      if (!lang) {
-        setNextScreen('/language'); // Step 1: User hasn't chosen language
-      } else if (!crop) {
-        setNextScreen('/crop');     // Step 2: User hasn't chosen crop
-      } else if (!rewardClaimed) {
-        setNextScreen('/lesson/1'); // Step 3: Lesson 1
+      // 2. Check Onboarding Flags
+      const hasLang = await AsyncStorage.getItem('user_language');
+      const hasCrop = await AsyncStorage.getItem('user_crop');
+      
+      if (!hasLang) {
+        setIsFirstLaunch(true); // Go to Language
+      } else if (!hasCrop) {
+        setIsFirstLaunch(true); // Go to Crop (technically handled by language screen flow usually)
       } else {
-        setNextScreen('/login');    // Step 4: Login/Signup
+        setIsFirstLaunch(false); // Go to Dashboard/Login
       }
     } catch (e) {
-      console.error("Onboarding check failed", e);
+      console.log(e);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
         <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
   }
 
-  // @ts-ignore
-  return <Redirect href={nextScreen} />;
+  // FLOW LOGIC:
+  // 1. No Language? -> Language Screen
+  // 2. Logged In? -> Dashboard
+  // 3. Not Logged In but has Language? -> Login
+  
+  if (isFirstLaunch) {
+    return <Redirect href="/language" />;
+  }
+
+  if (session) {
+    return <Redirect href="/dashboard" />;
+  }
+
+  return <Redirect href="/login" />;
 }

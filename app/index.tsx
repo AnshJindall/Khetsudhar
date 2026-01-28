@@ -5,58 +5,52 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 export default function Index() {
-  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasLanguage, setHasLanguage] = useState(false);
 
   useEffect(() => {
-    checkFlow();
+    checkStatus();
   }, []);
 
-  const checkFlow = async () => {
+  const checkStatus = async () => {
     try {
-      // 1. Check Session
+      // 1. Check Supabase Session (Are we logged in?)
       const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-
-      // 2. Check Onboarding Flags
-      const hasLang = await AsyncStorage.getItem('user_language');
-      const hasCrop = await AsyncStorage.getItem('user_crop');
       
-      if (!hasLang) {
-        setIsFirstLaunch(true); // Go to Language
-      } else if (!hasCrop) {
-        setIsFirstLaunch(true); // Go to Crop (technically handled by language screen flow usually)
+      if (data.session) {
+        setIsLoggedIn(true);
       } else {
-        setIsFirstLaunch(false); // Go to Dashboard/Login
+        // 2. If NOT logged in, have we chosen a language before?
+        const lang = await AsyncStorage.getItem('user_language');
+        if (lang) setHasLanguage(true);
       }
     } catch (e) {
       console.log(e);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#151718' }}>
         <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
   }
 
-  // FLOW LOGIC:
-  // 1. No Language? -> Language Screen
-  // 2. Logged In? -> Dashboard
-  // 3. Not Logged In but has Language? -> Login
-  
-  if (isFirstLaunch) {
-    return <Redirect href="/language" />;
-  }
-
-  if (session) {
+  // LOGIC:
+  // 1. Logged in? -> Dashboard (Skip everything)
+  if (isLoggedIn) {
     return <Redirect href="/dashboard" />;
   }
 
-  return <Redirect href="/login" />;
+  // 2. Not logged in, but selected language? -> Login Screen
+  if (hasLanguage) {
+    return <Redirect href="/login" />;
+  }
+
+  // 3. Brand new user? -> Language Selection
+  return <Redirect href="/language" />;
 }

@@ -1,27 +1,93 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { supabase } from '@/utils/supabase';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  View
+} from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 
 export default function GameScreen() {
- const router = useRouter();
- const { id } = useLocalSearchParams();
+  const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const [isSaving, setIsSaving] = useState(false);
 
- // 🚨 1. YOU MUST REPLACE THIS WITH THE DIRECT EMBED/HTML LINK 🚨
- // This ensures the WebView loads ONLY the game, not the Itch.io interface.
- const GAME_URL = 'https://eclectic-otter-4571bc.netlify.app/'; 
+  const GAME_URL = 'https://eclectic-otter-4571bc.netlify.app/'; 
 
- const handleMessage = (event: any) => {
- // Listens for window.ReactNativeWebView.postMessage('lesson_complete') from the game
- if (event.nativeEvent.data === 'lesson_complete') {
- router.replace({
- pathname: '/complete/[id]',
- params: { id: id as string }
- });
-  }}
+  const handleGameComplete = async () => {
+    if (isSaving || !id) return;
+    setIsSaving(true);
+    
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      const lessonId = parseInt(id as string);
+
+      if (userId) {
+        // 1. Fetch Points
+        const { data: lessonData } = await supabase
+          .from('lessons')
+          .select('points')
+          .eq('id', lessonId)
+          .single();
+        
+        const pointsAwarded = lessonData?.points || 150; 
+
+        // 2. Mark Completed
+        const { error: lessonError } = await supabase
+          .from('user_lessons')
+          .upsert(
+            { user_id: userId, lesson_id: lessonId, completed_at: new Date().toISOString() }, 
+            { onConflict: 'user_id,lesson_id' }
+          );
+
+        if (lessonError) throw lessonError;
+
+        // 3. Award Coins
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('coins, xp')
+          .eq('id', userId)
+          .single();
+          
+        if (profile) {
+          const newCoins = (profile.coins || 0) + pointsAwarded;
+          const newXP = (profile.xp || 0) + 100; 
+
+          await supabase
+            .from('profiles')
+            .update({ coins: newCoins, xp: newXP })
+            .eq('id', userId);
+        }
+      }
+
+      // Navigate to Complete
+      router.replace({
+        pathname: '/complete/[id]',
+        params: { id: id as string }
+      });
+
+    } catch (error: any) {
+      console.error("Game Save Error:", error);
+      Alert.alert("Error", "Could not save progress. Please check internet.");
+      setIsSaving(false);
+    }
+  };
+
+  const handleMessage = (event: any) => {
+    // Debugging: This Alert confirms the app received the signal
+    // console.log("Message received from game:", event.nativeEvent.data);
+    
+    if (event.nativeEvent.data === 'lesson_complete') {
+      handleGameComplete();
+    }
+  };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <WebView
         source={{ uri: GAME_URL }}
         style={styles.webview}
@@ -35,7 +101,7 @@ export default function GameScreen() {
           </View>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

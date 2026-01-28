@@ -1,3 +1,4 @@
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -12,6 +13,7 @@ import {
   View
 } from 'react-native';
 
+import { DEFAULT_LANGUAGE } from '@/constants/translations';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useTranslation } from '@/hooks/useTranslation';
 import { supabase } from '@/utils/supabase';
@@ -49,7 +51,8 @@ interface ActiveQuestData {
 type UserProgress = {
     total_lessons: number;
     completed_lessons: number;
-    user_coins: number; 
+    user_coins: number;
+    user_name: string; // Added Name
     active_quest: QuestDetail | null;
     next_lesson: LessonDetail | null;
 };
@@ -59,29 +62,36 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     
-    if (!userId) return { total_lessons: 0, completed_lessons: 0, user_coins: 0, active_quest: null, next_lesson: null };
+    // Default empty state
+    if (!userId) return { total_lessons: 0, completed_lessons: 0, user_coins: 0, user_name: 'FARMER', active_quest: null, next_lesson: null };
 
-    // 1. Coins
-    const { data: profileData } = await supabase.from('profiles').select('coins').eq('id', userId).single();
+    // 1. Profile (Coins & Name)
+    const { data: profileData } = await supabase
+        .from('profiles')
+        .select('coins, full_name') // Fetching full_name
+        .eq('id', userId)
+        .single();
+    
     const user_coins = profileData?.coins || 0;
+    const user_name = profileData?.full_name || 'FARMER';
 
     // 2. Lessons Counts
     const { count: total_lessons } = await supabase.from('lessons').select('*', { count: 'exact', head: true });
     
-    // 3. Next Lesson Logic
-    // Fetch actual completed lesson IDs to determine the max sequence reliably
+    // 3. Find Next Lesson (Robust Logic)
+    // We fetch the IDs of lessons the user has actually finished
     const { data: userLessons } = await supabase
         .from('user_lessons')
         .select('lesson_id')
         .eq('user_id', userId);
-        
+
     const completedIds = userLessons?.map(ul => ul.lesson_id) || [];
     const completed_lessons = completedIds.length;
 
     let nextLessonData: LessonDetail | null = null;
 
     if (completed_lessons > 0) {
-        // Get the sequences of completed lessons
+        // Find the highest sequence number among completed lessons
         const { data: completedSeqsData } = await supabase
             .from('lessons')
             .select('sequence')
@@ -100,7 +110,7 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
             
         nextLessonData = next;
     } else {
-        // No lessons completed, fetch the very first one
+        // If no lessons are completed, fetch the very first one (Sequence 1)
         const { data: first } = await supabase
             .from('lessons')
             .select('id, title, description, sequence')
@@ -111,7 +121,7 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
         nextLessonData = first;
     }
 
-    // 4. Quest
+    // 4. Active Quest
     let active_quest: QuestDetail | null = null;
     const { data: userQuests } = await supabase
         .from('user_quests')
@@ -125,18 +135,24 @@ const fetchUserProgress = async (): Promise<UserProgress> => {
         total_lessons: total_lessons || 0,
         completed_lessons: completed_lessons || 0,
         user_coins,
+        user_name,
         active_quest,
         next_lesson: nextLessonData
     };
 };
 
+const fetchTipOfTheDay = async (lang: string) => {
+    return "Tip: Using organic compost can increase soil water retention by up to 30%!";
+};
+
 // --- COMPONENTS ---
 
-const Header = ({ coins }: { coins: number }) => (
+const Header = ({ coins, name }: { coins: number, name: string }) => (
     <View style={styles.header}>
         <View>
             <Text style={styles.headerGreeting}>WELCOME BACK,</Text>
-            <Text style={styles.headerName}>FARMER</Text>
+            {/* Display the user's name in uppercase */}
+            <Text style={styles.headerName}>{name.toUpperCase()}</Text>
         </View>
         <View style={styles.coinPill}>
             <Coin width={20} height={20} />
@@ -155,15 +171,20 @@ const HubButton = ({ icon, label, onPress, style, textStyle }: any) => (
 // --- MAIN SCREEN ---
 export default function DashboardScreen() {
   const router = useRouter();
-  const { t, isLoading: isTransLoading } = useTranslation(); 
+  const { t, language, isLoading: isTransLoading } = useTranslation(); 
     
   const { data: progressData, loading: progressLoading, refresh: refreshProgress, refreshing } = useCachedQuery(
     `dashboard_progress_data`,
     fetchUserProgress
   );
+    
+  const { data: tipText, refresh: refreshTip } = useCachedQuery(
+    `dashboard_tip_of_day_${language || DEFAULT_LANGUAGE}`,
+    () => fetchTipOfTheDay(language || DEFAULT_LANGUAGE)
+  );
 
   const handleRefresh = async () => {
-    await refreshProgress();
+    await Promise.all([refreshProgress(), refreshTip()]);
   };
     
   if ((progressLoading || isTransLoading) && !progressData) {
@@ -179,6 +200,7 @@ export default function DashboardScreen() {
   const activeQuest = progressData?.active_quest;
   const nextLesson = progressData?.next_lesson;
   const coins = progressData?.user_coins || 0;
+  const userName = progressData?.user_name || 'FARMER';
 
   // Progress Bar Calculation
   const progressPercent = total > 0 ? (completed / total) * 100 : 0;
@@ -187,7 +209,8 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      <Header coins={coins} />
+      {/* Pass userName to Header */}
+      <Header coins={coins} name={userName} />
 
       <ScrollView 
         contentContainerStyle={styles.scrollContainer}
@@ -195,12 +218,12 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         
-        {/* HERO CARD: PRIORITY: Lesson -> Quest -> All Caught Up */}
+        {/* HERO CARD: Prioritize Next Lesson over Quest */}
         <View style={styles.heroContainer}>
             <MascotFarmer width={110} height={110} style={styles.mascot} />
             
             {nextLesson ? (
-                // OPTION A: Show Current Lesson (Highest Priority)
+                // OPTION A: Show Current/Next Lesson (Priority)
                 <TouchableOpacity
                   style={[styles.heroCard, styles.lessonHeroCard]}
                   onPress={() => router.push({ pathname: '/lesson/[id]', params: { id: nextLesson.id.toString() } })}
@@ -217,7 +240,7 @@ export default function DashboardScreen() {
                   </View>
                 </TouchableOpacity>
             ) : activeQuest ? (
-                // OPTION B: Show Active Quest (If no lessons left)
+                // OPTION B: Show Active Quest (Only if no lessons pending)
                 <TouchableOpacity
                   style={[styles.heroCard, styles.questCard]}
                   onPress={() => router.push({ pathname: '/quest-details', params: { id: activeQuest.id.toString() } })}
@@ -234,7 +257,7 @@ export default function DashboardScreen() {
                   </View>
                 </TouchableOpacity>
             ) : (
-                // OPTION C: All Done (Only when no lessons AND no active quest found)
+                // OPTION C: All Done (Only when strictly nothing else to show)
                  <View style={[styles.heroCard, { backgroundColor: '#333' }]}>
                     <Text style={styles.heroTitle}>ALL CAUGHT UP!</Text>
                     <Text style={styles.heroDesc}>You have completed all lessons.</Text>
@@ -249,22 +272,28 @@ export default function DashboardScreen() {
              </View>
              <Text style={styles.progressText}>{completed} / {total} LESSONS COMPLETED</Text>
         </View>
+        
+        {/* TIP OF THE DAY */}
+        {tipText && (
+            <View style={styles.tipContainer}>
+                <FontAwesome5 name="lightbulb" size={14} color="#FFD700" />
+                <Text style={styles.tipText}>{tipText}</Text>
+            </View>
+        )}
 
-        {/* HUB GRID - Icons Increased in Size */}
+        {/* HUB GRID */}
         <View style={styles.gridContainer}>
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('monthly_quests')} 
-                // Increased to 75
-                icon={<Quest width={75} height={75} />} 
+                icon={<Quest width={60} height={60} />} 
                 onPress={() => router.push('/quests')} 
                 style={[styles.buttonSquare, styles.questsButton]} 
                 textStyle={styles.squareButtonText} 
             />
             <HubButton 
                 label={t('leaderboard')} 
-                // Increased to 75
-                icon={<LeaderBoard width={75} height={75} />} 
+                icon={<LeaderBoard width={60} height={60} />} 
                 onPress={() => router.push('/leaderboard')} 
                 style={[styles.buttonSquare, styles.leaderboardButton]} 
                 textStyle={styles.squareButtonText} 
@@ -274,8 +303,7 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('rewards')} 
-                // Increased to 65
-                icon={<Reward width={65} height={65} />} 
+                icon={<Reward width={50} height={50} />} 
                 onPress={() => router.push('/reward-root')} 
                 style={[styles.buttonRect, styles.rewardsButton]} 
                 textStyle={styles.rectButtonText} 
@@ -285,8 +313,7 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('lessons')} 
-                // Increased to 65
-                icon={<Lessons width={65} height={65} />} 
+                icon={<Lessons width={50} height={50} />} 
                 onPress={() => router.push({ pathname: '/lessons', params: { lesson_completed: '0' } })} 
                 style={[styles.buttonRect, styles.lessonsButton]} 
                 textStyle={styles.rectButtonText} 
@@ -296,8 +323,7 @@ export default function DashboardScreen() {
           <View style={styles.gridRow}>
             <HubButton 
                 label={t('market_prices')} 
-                // Increased to 65
-                icon={<MarketPrice width={65} height={65} />} 
+                icon={<MarketPrice width={50} height={50} />} 
                 onPress={() => router.push('/marketPrices')} 
                 style={[styles.buttonRect, styles.marketButton]} 
                 textStyle={styles.rectButtonText} 
@@ -336,12 +362,12 @@ const styles = StyleSheet.create({
     borderRadius: 20, padding: 20, minHeight: 140, justifyContent: 'center',
     borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5
   },
-  questCard: { backgroundColor: '#2E1A47', borderColor: '#7B1FA2', shadowColor: '#7B1FA2' }, // Dark Purple
-  lessonHeroCard: { backgroundColor: '#1B3E20', borderColor: '#388E3C', shadowColor: '#388E3C' }, // Dark Green
+  questCard: { backgroundColor: '#2E1A47', borderColor: '#7B1FA2', shadowColor: '#7B1FA2' }, 
+  lessonHeroCard: { backgroundColor: '#1B3E20', borderColor: '#388E3C', shadowColor: '#388E3C' }, 
 
   heroBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
   heroBadgeText: { color: 'white', fontSize: 10, fontWeight: 'bold', fontFamily: PIXEL_FONT },
-  heroContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 80 }, // Padding for Mascot
+  heroContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 80 }, 
   heroTitle: { color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 5, lineHeight: 24 },
   heroDesc: { color: '#CCC', fontSize: 12 },
 
@@ -350,6 +376,13 @@ const styles = StyleSheet.create({
   progressBg: { height: 8, backgroundColor: '#333', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
   progressFill: { height: '100%', backgroundColor: '#4CAF50', borderRadius: 4 },
   progressText: { color: '#888', fontSize: 10, fontFamily: PIXEL_FONT, textAlign: 'center' },
+
+  // Tip
+  tipContainer: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    padding: 12, borderRadius: 12, marginBottom: 25, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.3)'
+  },
+  tipText: { color: '#FFE082', fontSize: 12, marginLeft: 10, flex: 1, fontStyle: 'italic' },
 
   // Grid
   gridContainer: { width: '100%' },
@@ -365,9 +398,9 @@ const styles = StyleSheet.create({
   rectButtonText: { fontSize: 18, marginLeft: 20 },
 
   // Colors
-  questsButton: { backgroundColor: 'rgba(74, 20, 140, 0.4)', borderColor: '#7B1FA2' }, // Purple
-  leaderboardButton: { backgroundColor: 'rgba(255, 143, 0, 0.25)', borderColor: '#FF8F00' }, // Amber/Yellow
-  rewardsButton: { backgroundColor: 'rgba(194, 24, 91, 0.4)', borderColor: '#E91E63' }, // Pink
-  lessonsButton: { backgroundColor: 'rgba(56, 142, 60, 0.4)', borderColor: '#43A047' }, // Green
-  marketButton: { backgroundColor: 'rgba(2, 119, 189, 0.4)', borderColor: '#039BE5' }, // Blue
+  questsButton: { backgroundColor: 'rgba(74, 20, 140, 0.4)', borderColor: '#7B1FA2' }, 
+  leaderboardButton: { backgroundColor: 'rgba(255, 143, 0, 0.25)', borderColor: '#FF8F00' }, 
+  rewardsButton: { backgroundColor: 'rgba(194, 24, 91, 0.4)', borderColor: '#E91E63' }, 
+  lessonsButton: { backgroundColor: 'rgba(56, 142, 60, 0.4)', borderColor: '#43A047' }, 
+  marketButton: { backgroundColor: 'rgba(2, 119, 189, 0.4)', borderColor: '#039BE5' }, 
 });

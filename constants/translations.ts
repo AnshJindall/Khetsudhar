@@ -1,80 +1,87 @@
 // Define the keys to ensure type safety across the app
 export type TranslationKeys =
-  | 'choose_language'
-  | 'choose_your_language_in_hindi'
-  | 'choose_crop'
-  | 'choose_your_crop_in_hindi'
-  | 'confirm'
-  | 'monthly_quests'
-  | 'leaderboard'
-  | 'rewards'
-  | 'lessons'
-  | 'market_prices'
-  | 'current_leaderboard_position'
-  | 'available_coins'
-  | 'unlocked'
-  | 'locked' // <--- ADDED THIS
-  | 'rewards_tree'
-  | 'username'
-  | 'password'
-  | 'login'
-  | 'logging_in'
-  | 'signup'
-  | 'create_one'
-  | 'dont_have_account'
-  | 'already_have_account'
-  | 'login_here'
-  | 'data_note'
-  | 'take_quiz'
-  | 'take_quiz_to_verify'
-  | 'continue_learning'
-  | 'profile'
-  | 'dashboard'
-  | 'rewards_tree_title'
-  | 'mission_brief'
-  | 'tasks'
-  | 'reward_earned'
-  | 'quest_completed'
-  | 'scan_at_store'
-  | 'all_india_prices'
-  | 'live_data'
-  | 'price_source_tip'
-  | 'price_per_unit'
-  | 'wealth'
-  | 'multiplier'
-  | 'quest_coins'
-  | 'land_size'
-  | 'sustainability_score'
-  | 'recent_achievements'
-  | 'logout'
-  | 'end_session'
-  | 'knowledge_check'
-  | 'win_xp'
-  | 'question'
-  | 'submit_answer'
-  | 'try_again'
-  | 'excellent_work'
-  | 'not_quite_right'
-  | 'review_lesson'
-  | 'claim_reward'
-  | 'completed'
-  | 'completed_lesson_title'
-  | 'offline_mode'
-  | 'save'
-  | 'saving'
-  | 'go_online'
-  | 'completed_btn'
-  | 'market_pulse'
-  | 'live_rates'
-  | 'search_placeholder'
-  | 'stable'
-  | 'syncing'
-  | 'no_data'
-  | 'no_crops'
-  | 'avg_mandi_price'
-  | 'mission_complete'
-  | 'great_job'
-  | 'quest_complete';
+  | "choose_language"
+  | "choose_your_language_in_hindi"
+  | "choose_crop"
+  | "choose_your_crop_in_hindi"
+  | "confirm"
+  | "monthly_quests"
+  | "leaderboard"
+  | "rewards"
+  | "lessons"
+  | "market_prices"
+  | "current_leaderboard_position"
+  | "available_coins"
+  | "unlocked"
+  | "locked"
+  | "rewards_tree"
+  | "username"
+  | "password"
+  | "login"
+  | "logging_in"
+  | "signup"
+  | "create_one"
+  | "dont_have_account"
+  | "already_have_account"
+  | "login_here"
+  | "data_note"
+  | "take_quiz"
+  | "take_quiz_to_verify"
+  | "continue_learning"
+  | "profile"
+  | "dashboard"
+  | "rewards_tree_title"
+  | "mission_brief"
+  | "tasks"
+  | "reward_earned"
+  | "quest_completed"
+  | "scan_at_store"
+  | "all_india_prices"
+  | "live_data"
+  | "price_source_tip"
+  | "price_per_unit"
+  | "wealth"
+  | "multiplier"
+  | "quest_coins"
+  | "land_size"
+  | "sustainability_score"
+  | "recent_achievements"
+  | "logout"
+  | "end_session"
+  | "knowledge_check"
+  | "win_xp"
+  | "question"
+  | "submit_answer"
+  | "try_again"
+  | "excellent_work"
+  | "not_quite_right"
+  | "review_lesson"
+  | "claim_reward"
+  | "completed"
+  | "completed_lesson_title"
+  | "offline_mode"
+  | "save"
+  | "saving"
+  | "go_online"
+  | "completed_btn"
+  | "market_pulse"
+  | "live_rates"
+  | "search_placeholder"
+  | "stable"
+  | "syncing"
+  | "no_data"
+  | "no_crops"
+  | "avg_mandi_price"
+  | "mission_complete"
+  | "great_job"
+  | "quest_complete"
+  // --- NEW KEYS ADDED HERE ---
+  | "schemes_title"
+  | "schemes_subtitle"
+  | "view_details"
+  | "benefits"
+  | "eligibility"
+  | "process";
 
 // Define the structure of the translations
 type Translations = Record<TranslationKeys, string>;
@@ -86,65 +93,65 @@ interface LanguageMap {
 const translations: LanguageMap = {
   // 1. English (en)
   en: {
-    choose_language: 'CHOOSE YOUR LANGUAGE',
-    choose_your_language_in_hindi: 'Choose your language',
-    choose_crop: 'CHOOSE CROP',
-    choose_your_crop_in_hindi: 'Choose your crop',
-    confirm: 'CONFIRM',
-    monthly_quests: 'QUESTS',
-    leaderboard: 'LEADERBOARD',
-    rewards: 'REWARDS',
-    lessons: 'LESSONS',
-    market_prices: 'MARKET PRICES',
-    current_leaderboard_position: 'CURRENT LEADERBOARD',
-    available_coins: 'AVAILABLE COINS',
-    unlocked: 'UNLOCKED',
-    locked: 'LOCKED', // <--- ADDED
-    rewards_tree: 'REWARDS TREE',
-    username: 'USERNAME',
-    password: 'PASSWORD',
-    login: 'LOGIN',
-    logging_in: 'LOGGING IN...',
-    signup: 'SIGN UP',
-    create_one: 'Create one',
+    choose_language: "CHOOSE YOUR LANGUAGE",
+    choose_your_language_in_hindi: "Choose your language",
+    choose_crop: "CHOOSE CROP",
+    choose_your_crop_in_hindi: "Choose your crop",
+    confirm: "CONFIRM",
+    monthly_quests: "QUESTS",
+    leaderboard: "LEADERBOARD",
+    rewards: "REWARDS",
+    lessons: "LESSONS",
+    market_prices: "MARKET PRICES",
+    current_leaderboard_position: "CURRENT LEADERBOARD",
+    available_coins: "AVAILABLE COINS",
+    unlocked: "UNLOCKED",
+    locked: "LOCKED",
+    rewards_tree: "REWARDS TREE",
+    username: "USERNAME",
+    password: "PASSWORD",
+    login: "LOGIN",
+    logging_in: "LOGGING IN...",
+    signup: "SIGN UP",
+    create_one: "Create one",
     dont_have_account: "Don't have an account?",
     already_have_account: "Already have an account?",
     login_here: "Login here",
     data_note: "DATA AS PER FARMER REGISTRY 2025",
-    take_quiz: 'TAKE QUIZ',
-    take_quiz_to_verify: 'TAKE QUIZ TO VERIFY',
-    continue_learning: 'CONTINUE LEARNING',
-    profile: 'PROFILE',
-    dashboard: 'DASHBOARD',
-    rewards_tree_title: 'REWARDS TREE',
-    mission_brief: 'MISSION BRIEF',
-    tasks: 'TASKS',
-    reward_earned: 'REWARD EARNED:',
-    quest_completed: 'QUEST COMPLETED!',
-    scan_at_store: 'Scan at store to claim',
-    all_india_prices: 'ALL INDIA SPOT PRICES',
-    live_data: 'Live Data',
-    price_source_tip: 'Prices fetched from mandi records.',
-    price_per_unit: 'Price per',
-    wealth: 'WEALTH',
-    multiplier: 'MULTIPLIER',
-    quest_coins: 'QUEST COINS',
-    land_size: 'LAND SIZE',
-    sustainability_score: 'SUSTAINABILITY SCORE',
-    recent_achievements: 'RECENT ACHIEVEMENTS',
-    logout: 'LOGOUT',
-    end_session: 'End your session?',
-    knowledge_check: 'KNOWLEDGE CHECK',
-    win_xp: 'Win {xp} XP',
-    question: 'QUESTION',
-    submit_answer: 'SUBMIT ANSWER',
-    try_again: 'TRY AGAIN',
-    excellent_work: 'EXCELLENT WORK!',
-    not_quite_right: 'NOT QUITE RIGHT',
-    review_lesson: 'Review the lesson to find the right answer.',
-    claim_reward: 'CLAIM REWARD',
-    completed: 'COMPLETED',
-    completed_lesson_title: 'LESSON COMPLETED!',
+    take_quiz: "TAKE QUIZ",
+    take_quiz_to_verify: "TAKE QUIZ TO VERIFY",
+    continue_learning: "CONTINUE LEARNING",
+    profile: "PROFILE",
+    dashboard: "DASHBOARD",
+    rewards_tree_title: "REWARDS TREE",
+    mission_brief: "MISSION BRIEF",
+    tasks: "TASKS",
+    reward_earned: "REWARD EARNED:",
+    quest_completed: "QUEST COMPLETED!",
+    scan_at_store: "Scan at store to claim",
+    all_india_prices: "ALL INDIA SPOT PRICES",
+    live_data: "Live Data",
+    price_source_tip: "Prices fetched from mandi records.",
+    price_per_unit: "Price per",
+    wealth: "WEALTH",
+    multiplier: "MULTIPLIER",
+    quest_coins: "QUEST COINS",
+    land_size: "LAND SIZE",
+    sustainability_score: "SUSTAINABILITY SCORE",
+    recent_achievements: "RECENT ACHIEVEMENTS",
+    logout: "LOGOUT",
+    end_session: "End your session?",
+    knowledge_check: "KNOWLEDGE CHECK",
+    win_xp: "Win {xp} XP",
+    question: "QUESTION",
+    submit_answer: "SUBMIT ANSWER",
+    try_again: "TRY AGAIN",
+    excellent_work: "EXCELLENT WORK!",
+    not_quite_right: "NOT QUITE RIGHT",
+    review_lesson: "Review the lesson to find the right answer.",
+    claim_reward: "CLAIM REWARD",
+    completed: "COMPLETED",
+    completed_lesson_title: "LESSON COMPLETED!",
     offline_mode: "Offline Mode",
     save: "SAVE",
     saving: "SAVING...",
@@ -158,72 +165,79 @@ const translations: LanguageMap = {
     no_data: "No data yet. Pull to refresh!",
     no_crops: "No crops found.",
     avg_mandi_price: "AVG. MANDI PRICE",
-    mission_complete: 'MISSION COMPLETE',
-    great_job: 'You have successfully completed the learning module.',
-    quest_complete: 'Quest Complete'
+    mission_complete: "MISSION COMPLETE",
+    great_job: "You have successfully completed the learning module.",
+    quest_complete: "Quest Complete",
+    // --- New Translations ---
+    schemes_title: "Government Schemes",
+    schemes_subtitle: "Empowering Farmers",
+    view_details: "View Details",
+    benefits: "Benefits",
+    eligibility: "Eligibility",
+    process: "Application Process",
   },
 
   // 2. Hindi (hi)
   hi: {
-    choose_language: 'अपनी भाषा चुनें',
-    choose_your_language_in_hindi: 'अपनी भाषा चुनें',
-    choose_crop: 'फ़सल चुनें',
-    choose_your_crop_in_hindi: 'अपनी फसल चुनें',
-    confirm: 'पुष्टि करें',
-    monthly_quests: 'मासिक मिशन',
-    leaderboard: 'लीडरबोर्ड',
-    rewards: 'पुरस्कार',
-    lessons: 'सीखने के पाठ',
-    market_prices: 'बाज़ार मूल्य',
-    current_leaderboard_position: 'वर्तमान लीडरबोर्ड',
-    available_coins: 'उपलब्ध सिक्के',
-    unlocked: 'अनलॉक किए गए',
-    locked: 'लॉक है', // <--- ADDED
-    rewards_tree: 'पुरस्कार वृक्ष',
-    username: 'उपयोगकर्ता नाम',
-    password: 'पासवर्ड',
-    login: 'लॉगिन',
-    logging_in: 'लॉगिन हो रहा है...',
-    signup: 'साइन अप करें',
-    create_one: 'एक बनाओ',
+    choose_language: "अपनी भाषा चुनें",
+    choose_your_language_in_hindi: "अपनी भाषा चुनें",
+    choose_crop: "फ़सल चुनें",
+    choose_your_crop_in_hindi: "अपनी फसल चुनें",
+    confirm: "पुष्टि करें",
+    monthly_quests: "मासिक मिशन",
+    leaderboard: "लीडरबोर्ड",
+    rewards: "पुरस्कार",
+    lessons: "सीखने के पाठ",
+    market_prices: "बाज़ार मूल्य",
+    current_leaderboard_position: "वर्तमान लीडरबोर्ड",
+    available_coins: "उपलब्ध सिक्के",
+    unlocked: "अनलॉक किए गए",
+    locked: "लॉक है",
+    rewards_tree: "पुरस्कार वृक्ष",
+    username: "उपयोगकर्ता नाम",
+    password: "पासवर्ड",
+    login: "लॉगिन",
+    logging_in: "लॉगिन हो रहा है...",
+    signup: "साइन अप करें",
+    create_one: "एक बनाओ",
     dont_have_account: "खाता नहीं है?",
     already_have_account: "पहले से ही खाता है?",
     login_here: "यहाँ लॉगिन करें",
     data_note: "किसान रजिस्ट्री 2025 के अनुसार डेटा",
-    take_quiz: 'क्विज लें',
-    take_quiz_to_verify: 'पुष्टि के लिए क्विज लें',
-    continue_learning: 'सीखना जारी रखें',
-    profile: 'प्रोफाइल',
-    dashboard: 'डैशबोर्ड',
-    rewards_tree_title: 'पुरस्कार वृक्ष',
-    mission_brief: 'मिशन सारांश',
-    tasks: 'कार्य',
-    reward_earned: 'पुरस्कार प्राप्त:',
-    quest_completed: 'मिशन पूरा हुआ!',
-    scan_at_store: 'भुगतान के लिए स्टोर पर स्कैन करें',
-    all_india_prices: 'अखिल भारतीय मूल्य',
-    live_data: 'लाइव डेटा',
-    price_source_tip: 'बाजार रिकॉर्ड से प्राप्त मूल्य।',
-    price_per_unit: 'प्रति इकाई मूल्य',
-    wealth: 'धन',
-    multiplier: 'गुणांक',
-    quest_coins: 'मिशन सिक्के',
-    land_size: 'जमीन का आकार',
-    sustainability_score: 'स्थिरता स्कोर',
-    recent_achievements: 'हाल की उपलब्धियां',
-    logout: 'लॉगआउट',
-    end_session: 'अपना सत्र समाप्त करें?',
-    knowledge_check: 'ज्ञान जाँच',
-    win_xp: '{xp} XP जीतें',
-    question: 'प्रश्न',
-    submit_answer: 'उत्तर दें',
-    try_again: 'पुनः प्रयास करें',
-    excellent_work: 'उत्कृष्ट कार्य!',
-    not_quite_right: 'पूरी तरह सही नहीं',
-    review_lesson: 'सही उत्तर खोजने के लिए पाठ की समीक्षा करें।',
-    claim_reward: 'इनाम लें',
-    completed: 'पूरा किया',
-    completed_lesson_title: 'पाठ पूरा हुआ!',
+    take_quiz: "क्विज लें",
+    take_quiz_to_verify: "पुष्टि के लिए क्विज लें",
+    continue_learning: "सीखना जारी रखें",
+    profile: "प्रोफाइल",
+    dashboard: "डैशबोर्ड",
+    rewards_tree_title: "पुरस्कार वृक्ष",
+    mission_brief: "मिशन सारांश",
+    tasks: "कार्य",
+    reward_earned: "पुरस्कार प्राप्त:",
+    quest_completed: "मिशन पूरा हुआ!",
+    scan_at_store: "भुगतान के लिए स्टोर पर स्कैन करें",
+    all_india_prices: "अखिल भारतीय मूल्य",
+    live_data: "लाइव डेटा",
+    price_source_tip: "बाजार रिकॉर्ड से प्राप्त मूल्य।",
+    price_per_unit: "प्रति इकाई मूल्य",
+    wealth: "धन",
+    multiplier: "गुणांक",
+    quest_coins: "मिशन सिक्के",
+    land_size: "जमीन का आकार",
+    sustainability_score: "स्थिरता स्कोर",
+    recent_achievements: "हाल की उपलब्धियां",
+    logout: "लॉगआउट",
+    end_session: "अपना सत्र समाप्त करें?",
+    knowledge_check: "ज्ञान जाँच",
+    win_xp: "{xp} XP जीतें",
+    question: "प्रश्न",
+    submit_answer: "उत्तर दें",
+    try_again: "पुनः प्रयास करें",
+    excellent_work: "उत्कृष्ट कार्य!",
+    not_quite_right: "पूरी तरह सही नहीं",
+    review_lesson: "सही उत्तर खोजने के लिए पाठ की समीक्षा करें।",
+    claim_reward: "इनाम लें",
+    completed: "पूरा किया",
+    completed_lesson_title: "पाठ पूरा हुआ!",
     offline_mode: "ऑफ़लाइन मोड",
     save: "सहेजें",
     saving: "सहेजा जा रहा है...",
@@ -237,72 +251,79 @@ const translations: LanguageMap = {
     no_data: "अभी तक कोई डेटा नहीं। रीफ्रेश करें!",
     no_crops: "कोई फसल नहीं मिली।",
     avg_mandi_price: "औसत मंडी भाव",
-    mission_complete: 'मिशन पूरा हुआ',
-    great_job: 'आपने सीखने का मॉड्यूल सफलतापूर्वक पूरा कर लिया है।',
-    quest_complete: 'मिशन पूरा'
+    mission_complete: "मिशन पूरा हुआ",
+    great_job: "आपने सीखने का मॉड्यूल सफलतापूर्वक पूरा कर लिया है।",
+    quest_complete: "मिशन पूरा",
+    // --- New Translations ---
+    schemes_title: "सरकारी योजनाएं",
+    schemes_subtitle: "किसानों का सशक्तिकरण",
+    view_details: "विवरण देखें",
+    benefits: "लाभ",
+    eligibility: "पात्रता",
+    process: "आवेदन प्रक्रिया",
   },
 
   // 3. Punjabi (pa)
   pa: {
-    choose_language: 'APNI BHASHA CHUNO',
-    choose_your_language_in_hindi: 'Apni Bhasha Chuno',
-    choose_crop: 'FASAL CHUNO',
-    choose_your_crop_in_hindi: 'Apni Fasal Chuno',
-    confirm: 'PAKKA KARO',
-    monthly_quests: 'MISSION',
-    leaderboard: 'LEADERBOARD',
-    rewards: 'INAAM',
-    lessons: 'PAATH',
-    market_prices: 'BAZAR RATE',
-    current_leaderboard_position: 'HAZRI LEADERBOARD',
-    available_coins: 'COINS',
-    unlocked: 'UNLOCKED',
-    locked: 'LOCKED', // <--- ADDED
-    rewards_tree: 'INAAM DA RUKH',
-    username: 'USERNAME',
-    password: 'PASSWORD',
-    login: 'LOGIN',
-    logging_in: 'LOGIN HO RAHA...',
-    signup: 'SIGN UP',
-    create_one: 'Create one',
+    choose_language: "APNI BHASHA CHUNO",
+    choose_your_language_in_hindi: "Apni Bhasha Chuno",
+    choose_crop: "FASAL CHUNO",
+    choose_your_crop_in_hindi: "Apni Fasal Chuno",
+    confirm: "PAKKA KARO",
+    monthly_quests: "MISSION",
+    leaderboard: "LEADERBOARD",
+    rewards: "INAAM",
+    lessons: "PAATH",
+    market_prices: "BAZAR RATE",
+    current_leaderboard_position: "HAZRI LEADERBOARD",
+    available_coins: "COINS",
+    unlocked: "UNLOCKED",
+    locked: "LOCKED",
+    rewards_tree: "INAAM DA RUKH",
+    username: "USERNAME",
+    password: "PASSWORD",
+    login: "LOGIN",
+    logging_in: "LOGIN HO RAHA...",
+    signup: "SIGN UP",
+    create_one: "Create one",
     dont_have_account: "Account nahi hai?",
     already_have_account: "Pehle hi account hai?",
     login_here: "Ethe login karo",
     data_note: "KISAN REGISTRY 2025 DATA",
-    take_quiz: 'QUIZ DAO',
-    take_quiz_to_verify: 'CHECK LAYI QUIZ DAO',
-    continue_learning: 'SIKHNA JARI RAKHO',
-    profile: 'PROFILE',
-    dashboard: 'DASHBOARD',
-    rewards_tree_title: 'INAAM DA RUKH',
-    mission_brief: 'MISSION DA SARAANSH',
-    tasks: 'KAAM',
-    reward_earned: 'INAAM MILEYA:',
-    quest_completed: 'MISSION PURA!',
-    scan_at_store: 'Store te scan karke claim karo',
-    all_india_prices: 'SAARE INDIA DE RATE',
-    live_data: 'Live Data',
-    price_source_tip: 'Rate mandi records ton aaye ne.',
-    price_per_unit: 'Ikai da Rate',
-    wealth: 'DAULAT',
-    multiplier: 'MULTIPLIER',
-    quest_coins: 'MISSION COINS',
-    land_size: 'ZAMEEN DA AAKAAR',
-    sustainability_score: 'SUSTAINABILITY SCORE',
-    recent_achievements: 'HAAL DI ACHIEVEMENT',
-    logout: 'LOGOUT',
-    end_session: 'Session khatam kariye?',
-    knowledge_check: 'GYAN PARKH',
-    win_xp: '{xp} XP JITTO',
-    question: 'SAWAAL',
-    submit_answer: 'UTTAR DAO',
-    try_again: 'DOBARA KOSHISH',
-    excellent_work: 'BAHUT WAHDIA!',
-    not_quite_right: 'SAHI NAHI HAI',
-    review_lesson: 'Sahi uttar labhan layi paath vekho.',
-    claim_reward: 'INAAM LABHO',
-    completed: 'PURA HO GAYA',
-    completed_lesson_title: 'PAATH PURA HO GAYA!',
+    take_quiz: "QUIZ DAO",
+    take_quiz_to_verify: "CHECK LAYI QUIZ DAO",
+    continue_learning: "SIKHNA JARI RAKHO",
+    profile: "PROFILE",
+    dashboard: "DASHBOARD",
+    rewards_tree_title: "INAAM DA RUKH",
+    mission_brief: "MISSION DA SARAANSH",
+    tasks: "KAAM",
+    reward_earned: "INAAM MILEYA:",
+    quest_completed: "MISSION PURA!",
+    scan_at_store: "Store te scan karke claim karo",
+    all_india_prices: "SAARE INDIA DE RATE",
+    live_data: "Live Data",
+    price_source_tip: "Rate mandi records ton aaye ne.",
+    price_per_unit: "Ikai da Rate",
+    wealth: "DAULAT",
+    multiplier: "MULTIPLIER",
+    quest_coins: "MISSION COINS",
+    land_size: "ZAMEEN DA AAKAAR",
+    sustainability_score: "SUSTAINABILITY SCORE",
+    recent_achievements: "HAAL DI ACHIEVEMENT",
+    logout: "LOGOUT",
+    end_session: "Session khatam kariye?",
+    knowledge_check: "GYAN PARKH",
+    win_xp: "{xp} XP JITTO",
+    question: "SAWAAL",
+    submit_answer: "UTTAR DAO",
+    try_again: "DOBARA KOSHISH",
+    excellent_work: "BAHUT WAHDIA!",
+    not_quite_right: "SAHI NAHI HAI",
+    review_lesson: "Sahi uttar labhan layi paath vekho.",
+    claim_reward: "INAAM LABHO",
+    completed: "PURA HO GAYA",
+    completed_lesson_title: "PAATH PURA HO GAYA!",
     offline_mode: "ਔਫਲਾਈਨ ਮੋਡ",
     save: "ਸੰਭਾਲੋ",
     saving: "ਸੰਭਾਲਿਆ ਜਾ ਰਿਹਾ ਹੈ...",
@@ -316,72 +337,79 @@ const translations: LanguageMap = {
     no_data: "ਅਜੇ ਕੋਈ ਡਾਟਾ ਨਹੀਂ। ਰੀਫ੍ਰੈਸ਼ ਕਰੋ!",
     no_crops: "ਕੋਈ ਫਸਲ ਨਹੀਂ ਮਿਲੀ।",
     avg_mandi_price: "ਔਸਤ ਮੰਡੀ ਮੁੱਲ",
-    mission_complete: 'ਮਿਸ਼ਨ ਪੂਰਾ',
-    great_job: 'ਤੁਸੀਂ ਸਫਲਤਾਪੂਰਵਕ ਪਾਠ ਪੂਰਾ ਕਰ ਲਿਆ ਹੈ।',
-    quest_complete: 'ਮਿਸ਼ਨ ਪੂਰਾ'
+    mission_complete: "ਮਿਸ਼ਨ ਪੂਰਾ",
+    great_job: "ਤੁਸੀਂ ਸਫਲਤਾਪੂਰਵਕ ਪਾਠ ਪੂਰਾ ਕਰ ਲਿਆ ਹੈ।",
+    quest_complete: "ਮਿਸ਼ਨ ਪੂਰਾ",
+    // --- New Translations Added to Prevent Errors ---
+    schemes_title: "Sarkari Yojnaavan",
+    schemes_subtitle: "Kisanan da Sashaktikaran",
+    view_details: "Verva Vekho",
+    benefits: "Laabh",
+    eligibility: "Yogyata",
+    process: "Arzi Prakriya",
   },
 
   // 4. Malayalam (ml)
   ml: {
-    choose_language: 'ഭാഷ തിരഞ്ഞെടുക്കുക',
-    choose_your_language_in_hindi: 'Bhasha Thiranjedukkuka',
-    choose_crop: 'വിള തിരഞ്ഞെടുക്കുക',
-    choose_your_crop_in_hindi: 'Vila Thiranjedukkuka',
-    confirm: 'സ്ഥിരീകരിക്കുക',
-    monthly_quests: 'ദൗത്യങ്ങൾ',
-    leaderboard: 'ലീഡർബോർഡ്',
-    rewards: 'സമ്മാനങ്ങൾ',
-    lessons: 'പാഠങ്ങൾ',
-    market_prices: 'വിപണി വില',
-    current_leaderboard_position: 'റാങ്കിംഗ്',
-    available_coins: 'കൈവശമുള്ള കോയിനുകൾ',
-    unlocked: 'തുറന്നവ',
-    locked: 'LOCKED', // <--- ADDED
-    rewards_tree: 'റിവാർഡ് ട്രീ',
-    username: 'ഉപയോക്തൃനാമം',
-    password: 'പാസ്‌വേഡ്',
-    login: 'ലോഗിൻ',
-    logging_in: 'ലോഗിൻ ചെയ്യുന്നു...',
-    signup: 'സൈൻ അപ്പ്',
-    create_one: 'പുതിയത് ഉണ്ടാക്കൂ',
+    choose_language: "ഭാഷ തിരഞ്ഞെടുക്കുക",
+    choose_your_language_in_hindi: "Bhasha Thiranjedukkuka",
+    choose_crop: "വിള തിരഞ്ഞെടുക്കുക",
+    choose_your_crop_in_hindi: "Vila Thiranjedukkuka",
+    confirm: "സ്ഥിരീകരിക്കുക",
+    monthly_quests: "ദൗത്യങ്ങൾ",
+    leaderboard: "ലീഡർബോർഡ്",
+    rewards: "സമ്മാനങ്ങൾ",
+    lessons: "പാഠങ്ങൾ",
+    market_prices: "വിപണി വില",
+    current_leaderboard_position: "റാങ്കിംഗ്",
+    available_coins: "കൈവശമുള്ള കോയിനുകൾ",
+    unlocked: "തുറന്നവ",
+    locked: "LOCKED",
+    rewards_tree: "റിവാർഡ് ട്രീ",
+    username: "ഉപയോക്തൃനാമം",
+    password: "പാസ്‌വേഡ്",
+    login: "ലോഗിൻ",
+    logging_in: "ലോഗിൻ ചെയ്യുന്നു...",
+    signup: "സൈൻ അപ്പ്",
+    create_one: "പുതിയത് ഉണ്ടാക്കൂ",
     dont_have_account: "അക്കൗണ്ട് ഇല്ലേ?",
     already_have_account: "അക്കൗണ്ട് ഉണ്ടോ?",
     login_here: "ഇവിടെ ലോഗിൻ ചെയ്യുക",
     data_note: "കർഷക രജിസ്ട്രി 2025 പ്രകാരം",
-    take_quiz: 'ക്വിസ് എടുക്കുക',
-    take_quiz_to_verify: 'പരിശോധിക്കാൻ ക്വിസ് എടുക്കുക',
-    continue_learning: 'പഠനം തുടരുക',
-    profile: 'പ്രൊഫൈൽ',
-    dashboard: 'ഡാഷ്ബോർഡ്',
-    rewards_tree_title: 'റിവാർഡ് ട്രീ',
-    mission_brief: 'ദൗത്യ വിവരണം',
-    tasks: 'ജോലികൾ',
-    reward_earned: 'നേടിയ സമ്മാനം:',
-    quest_completed: 'ദൗത്യം പൂർത്തിയായി!',
-    scan_at_store: 'Scan to claim',
-    all_india_prices: 'ഇന്ത്യയിലെ വിലകൾ',
-    live_data: 'തത്സമയ വിവരങ്ങൾ',
-    price_source_tip: 'മണ്ടി രേഖകളിൽ നിന്നുള്ള വിലകൾ',
-    price_per_unit: 'യൂണിറ്റ് വില',
-    wealth: 'സമ്പത്ത്',
-    multiplier: 'ഗുണകം',
-    quest_coins: 'ക്വസ്റ്റ് കോയിനുകൾ',
-    land_size: 'ഭൂമിയുടെ വിസ്തീർണ്ണം',
-    sustainability_score: 'സുസ്ഥിരത സ്കോർ',
-    recent_achievements: 'നേട്ടങ്ങൾ',
-    logout: 'ലോഗ് ഔട്ട്',
-    end_session: 'സെഷൻ അവസാനിപ്പിക്കണോ?',
-    knowledge_check: 'അറിവ് പരിശോധന',
-    win_xp: '{xp} XP നേടൂ',
-    question: 'ചോദ്യം',
-    submit_answer: 'ഉത്തരം നൽകുക',
-    try_again: 'വീണ്ടും ശ്രമിക്കുക',
-    excellent_work: 'നന്നായി ചെയ്തു!',
-    not_quite_right: 'ശരിയല്ല',
-    review_lesson: 'പാഠം വീണ്ടും നോക്കുക.',
-    claim_reward: 'സമ്മാനം നേടുക',
-    completed: 'പൂർത്തിയായി',
-    completed_lesson_title: 'പാഠം പൂർത്തിയായി!',
+    take_quiz: "ക്വിസ് എടുക്കുക",
+    take_quiz_to_verify: "പരിശോധിക്കാൻ ക്വിസ് എടുക്കുക",
+    continue_learning: "പഠനം തുടരുക",
+    profile: "പ്രൊഫൈൽ",
+    dashboard: "ഡാഷ്ബോർഡ്",
+    rewards_tree_title: "റിവാർഡ് ട്രീ",
+    mission_brief: "ദൗത്യ വിവരണം",
+    tasks: "ജോലികൾ",
+    reward_earned: "നേടിയ സമ്മാനം:",
+    quest_completed: "ദൗത്യം പൂർത്തിയായി!",
+    scan_at_store: "Scan to claim",
+    all_india_prices: "ഇന്ത്യയിലെ വിലകൾ",
+    live_data: "തത്സമയ വിവരങ്ങൾ",
+    price_source_tip: "മണ്ടി രേഖകളിൽ നിന്നുള്ള വിലകൾ",
+    price_per_unit: "യൂണിറ്റ് വില",
+    wealth: "സമ്പത്ത്",
+    multiplier: "ഗുണകം",
+    quest_coins: "ക്വസ്റ്റ് കോയിനുകൾ",
+    land_size: "ഭൂമിയുടെ വിസ്തീർണ്ണം",
+    sustainability_score: "സുസ്ഥിരത സ്കോർ",
+    recent_achievements: "നേട്ടങ്ങൾ",
+    logout: "ലോഗ് ഔട്ട്",
+    end_session: "സെഷൻ അവസാനിപ്പിക്കണോ?",
+    knowledge_check: "അറിവ് പരിശോധന",
+    win_xp: "{xp} XP നേടൂ",
+    question: "ചോദ്യം",
+    submit_answer: "ഉത്തരം നൽകുക",
+    try_again: "വീണ്ടും ശ്രമിക്കുക",
+    excellent_work: "നന്നായി ചെയ്തു!",
+    not_quite_right: "ശരിയല്ല",
+    review_lesson: "പാഠം വീണ്ടും നോക്കുക.",
+    claim_reward: "സമ്മാനം നേടുക",
+    completed: "പൂർത്തിയായി",
+    completed_lesson_title: "പാഠം പൂർത്തിയായി!",
     offline_mode: "ഓഫ്‌ലൈൻ മോഡ്",
     save: "സേവ്",
     saving: "സേവ് ചെയ്യുന്നു...",
@@ -395,12 +423,19 @@ const translations: LanguageMap = {
     no_data: "വിവരങ്ങൾ ലഭ്യമല്ല",
     no_crops: "വിളകൾ ഒന്നും കണ്ടെത്തിയില്ല",
     avg_mandi_price: "ശരാശരി വില",
-    mission_complete: 'ദൗത്യം പൂർത്തിയായി',
-    great_job: 'നിങ്ങൾ പഠന മൊഡ്യൂൾ വിജയകരമായി പൂർത്തിയാക്കി.',
-    quest_complete: 'ദൗത്യം പൂർത്തിയായി'
-  }
+    mission_complete: "ദൗത്യം പൂർത്തിയായി",
+    great_job: "നിങ്ങൾ പഠന മൊഡ്യൂൾ വിജയകരമായി പൂർത്തിയാക്കി.",
+    quest_complete: "ദൗത്യം പൂർത്തിയായി",
+    // --- New Translations Added to Prevent Errors ---
+    schemes_title: "Government Schemes",
+    schemes_subtitle: "Empowering Farmers",
+    view_details: "View Details",
+    benefits: "Benefits",
+    eligibility: "Eligibility",
+    process: "Application Process",
+  },
 };
 
-export const DEFAULT_LANGUAGE = 'en';
+export const DEFAULT_LANGUAGE = "en";
 
 export default translations;

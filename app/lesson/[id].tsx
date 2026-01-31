@@ -1,6 +1,6 @@
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -8,9 +8,11 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  ImageBackground,
 } from 'react-native';
 
+import { Video, ResizeMode } from 'expo-av';
 import { DEFAULT_LANGUAGE } from '@/constants/translations';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -67,11 +69,34 @@ const fetchLessonDetail = async (idStr: string, lang: string) => {
 
     return { lesson, isCompleted };
 };
+// Helper to select image based on Lesson ID
+const getLessonImage = (id: number) => {
+  switch (id) {
+    case 1:
+      return require('../../assets/images/Thumbnails/L1 thumb.png');
+    case 2:
+      return require('../../assets/images/Thumbnails/L2 thumb.png');
+    case 3:
+      return require('../../assets/images/Thumbnails/L3 thumb.png');
+    case 4:
+      return require('../../assets/images/Thumbnails/L4 THUMB.png');
+  }
+};
 
+const getLessonVideo = (id: number) => {
+  switch (id) {
+    case 1:
+      return require('../../assets/images/Thumbnails/L1video.mp4');
+    default:
+      return null; // No video for other lessons yet
+  }
+};
 export default function LessonDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, language, isLoading: isTransLoading } = useTranslation();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<Video>(null);
 
   const { data, loading, isOffline } = useCachedQuery(
     `lesson_detail_${id}_${language || DEFAULT_LANGUAGE}`,
@@ -80,7 +105,7 @@ export default function LessonDetailScreen() {
 
   const lesson = data?.lesson;
   const isCompleted = data?.isCompleted;
-
+  const videoSource = lesson ? getLessonVideo(lesson.id) : null;
   const handleTakeQuiz = () => {
     if (!lesson) return;
     // Special case for ID 2 (Game) if needed, otherwise normal quiz
@@ -110,8 +135,38 @@ export default function LessonDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.videoPlaceholder}>
-          <FontAwesome5 name="play" size={40} color="white" />
+        {/* Dynamic Lesson Image with Play Button */}
+        <View style={styles.mediaContainer}>
+          {isPlaying && videoSource ? (
+             <Video
+               ref={videoRef}
+               style={styles.videoPlayer}
+               source={videoSource}
+               useNativeControls
+               resizeMode={ResizeMode.CONTAIN}
+               isLooping={false}
+               shouldPlay={true}
+             />
+          ) : (
+            <TouchableOpacity 
+              activeOpacity={0.8} 
+              onPress={() => {
+                 if(videoSource) setIsPlaying(true);
+                 else alert("No video found for this lesson.");
+              }}
+              style={styles.thumbnailContainer}
+            >
+              <ImageBackground
+                source={getLessonImage(lesson.id)}
+                style={styles.lessonImage}
+                imageStyle={{ borderRadius: 16 }}
+              >
+                <View style={styles.playButtonContainer}>
+                  <FontAwesome5 name="play" size={30} color="white" style={{ marginLeft: 4 }} />
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.contentContainer}>
@@ -157,7 +212,11 @@ const styles = StyleSheet.create({
   bigNumber: { color: 'white', fontSize: 80, fontWeight: '900', marginRight: 15, lineHeight: 85 },
   headerTitle: { color: 'white', fontSize: 22, fontWeight: 'bold', marginTop: 10, lineHeight: 28 },
   headerDescription: { color: '#B0B0B0', fontSize: 16, marginTop: 8, lineHeight: 22, fontStyle: 'italic' },
-  videoPlaceholder: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#388E3C', borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  mediaContainer: {marginBottom: 24,borderRadius: 16,overflow: 'hidden',backgroundColor: 'black',},
+  thumbnailContainer: {width: '100%', },
+  lessonImage: {width: '100%',height: 220,backgroundColor: '#2C2C2E',justifyContent: 'center',alignItems: 'center',},
+  videoPlayer: {width: '100%', height: 220,backgroundColor: 'black',},
+  playButtonContainer: {width: 60,height: 60,borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.5)',justifyContent: 'center',alignItems: 'center',borderWidth: 1,borderColor: 'rgba(255,255,255,0.3)',},
   contentContainer: { marginBottom: 30 },
   contentHeader: { color: 'white', fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
   contentText: { color: '#E0E0E0', fontSize: 16, lineHeight: 24, marginBottom: 10 },

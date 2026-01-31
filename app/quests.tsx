@@ -16,91 +16,73 @@ import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { useTranslation } from "@/hooks/useTranslation";
 import { supabase } from "@/utils/supabase";
 
-import LeaderBoardIcon from "../assets/images/LeaderBoard.svg";
 import Qcoin from "../assets/images/Qcoin.svg";
 
 const PIXEL_FONT = "monospace";
-const QUEST_REWARD = 1000; // Force Display 1000
+const QUEST_REWARD = 1000;
 
+// --- FETCHER ---
 const fetchQuestsData = async () => {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user?.id;
 
-  // 1. Get User's Selected Crop
+  // 1. Get User Crop
   let userCrop = null;
   if (userId) {
-    const { data: profile } = await supabase
+    const { data: p } = await supabase
       .from("profiles")
       .select("selected_crop")
       .eq("id", userId)
       .single();
-    userCrop = profile?.selected_crop;
+    userCrop = p?.selected_crop;
   }
 
-  // 2. Fetch Quests (Filter by Crop)
+  // 2. Fetch Filtered Quests (Generic OR Specific)
   let query = supabase.from("quests").select("*").order("id");
 
   if (userCrop) {
-    // Show Global (null) OR Crop Specific
     query = query.or(`target_crop.is.null,target_crop.eq.${userCrop}`);
   } else {
-    // Show only Global if no crop selected
     query = query.is("target_crop", null);
   }
 
-  const { data: questsData, error: questError } = await query;
-  if (questError) throw questError;
+  const { data: questsData, error } = await query;
+  if (error) throw error;
 
-  // 3. Fetch User Data (Rank, Coins, etc.)
+  // 3. Check Completion
   let completedIds = new Set();
-  let userRank = "-";
   let userCoins = 0;
 
   if (userId) {
-    // ... (Keep your existing rank/coin logic here) ...
-    // Fetch Completed IDs
-    const { data: userQuests } = await supabase
+    const { data: uq } = await supabase
       .from("user_quests")
       .select("quest_id")
       .eq("user_id", userId);
+    uq?.forEach((i) => completedIds.add(i.quest_id));
 
-    if (userQuests) {
-      userQuests.forEach((uq) => completedIds.add(uq.quest_id));
-    }
-
-    // Fetch User Score
-    const { data: profile } = await supabase
-      .from("leaderboard_view")
-      .select("quest_coins, final_score")
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("quest_coins")
       .eq("id", userId)
-      .maybeSingle();
-
-    userCoins = profile?.quest_coins || 0;
-    const finalScore = profile?.final_score || 0;
-
-    // Fetch Rank
-    const { count } = await supabase
-      .from("leaderboard_view")
-      .select("*", { count: "exact", head: true })
-      .gt("final_score", finalScore);
-
-    userRank = ((count || 0) + 1).toString();
+      .single();
+    userCoins = p?.quest_coins || 0;
   }
 
   const finalQuests = (questsData || []).map((q) => ({
     ...q,
-    xp_reward: 1000, // Force 1000
+    xp_reward: QUEST_REWARD,
     isCompleted: completedIds.has(q.id),
   }));
 
-  return { quests: finalQuests, userRank, userCoins };
+  return { quests: finalQuests, userCoins };
 };
+
 export default function QuestsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
 
   const { data, loading, isOffline, refresh, refreshing } = useCachedQuery(
-    "quests_page_v5_final",
+    "quests_page_clean_v1",
     fetchQuestsData,
   );
 
@@ -111,13 +93,12 @@ export default function QuestsScreen() {
   );
 
   const quests = data?.quests || [];
-  const userRank = data?.userRank || "-";
   const userCoins = data?.userCoins || 0;
 
   if (loading && !data) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7B1FA2" />
+        <ActivityIndicator size="large" color="#4CAF50" />
       </SafeAreaView>
     );
   }
@@ -130,7 +111,7 @@ export default function QuestsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor="#7B1FA2"
+            tintColor="#4CAF50"
           />
         }
       >
@@ -140,61 +121,21 @@ export default function QuestsScreen() {
           </View>
         )}
 
-        <View style={styles.statsRow}>
-          <View style={styles.statPill}>
-            <View style={styles.iconCircle}>
-              <Qcoin width={20} height={20} />
-            </View>
-            <View>
-              <Text style={styles.statLabel}>
-                {t("quest_coins") || "QUEST POINTS"}
-              </Text>
-              <Text style={styles.statValue}>{userCoins}</Text>
-            </View>
+        {/* --- SIMPLE STATS HEADER --- */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>
+              {t("monthly_quests") || "QUESTS"}
+            </Text>
+            <Text style={styles.headerSub}>Complete tasks to earn coins</Text>
           </View>
-
-          <View style={[styles.statPill, styles.rankPill]}>
-            <View style={[styles.iconCircle, styles.iconCircleGold]}>
-              <FontAwesome5 name="trophy" size={14} color="#FFD700" />
-            </View>
-            <View>
-              <Text style={styles.statLabel}>
-                {t("current_leaderboard_position") || "RANK"}
-              </Text>
-              <Text style={[styles.statValue, { color: "#FFD700" }]}>
-                #{userRank}
-              </Text>
-            </View>
+          <View style={styles.coinBadge}>
+            <Qcoin width={18} height={18} />
+            <Text style={styles.coinText}>{userCoins}</Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.leaderboardBanner}
-          onPress={() => router.push("/leaderboard")}
-          activeOpacity={0.9}
-        >
-          <View style={styles.lbContent}>
-            <Text style={styles.lbTitle}>LEADERBOARD</Text>
-            <Text style={styles.lbDesc}>
-              Your Rank:{" "}
-              <Text style={{ fontWeight: "bold", color: "#FFD700" }}>
-                #{userRank}
-              </Text>
-            </Text>
-            <View style={styles.lbButton}>
-              <Text style={styles.lbButtonText}>VIEW FULL RANKING</Text>
-              <FontAwesome5 name="arrow-right" size={10} color="white" />
-            </View>
-          </View>
-          <View style={styles.lbIconContainer}>
-            <LeaderBoardIcon width={80} height={80} />
-          </View>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>
-          {t("monthly_quests") || "MONTHLY MISSIONS"}
-        </Text>
-
+        {/* --- QUEST LIST --- */}
         {quests.map((quest) => (
           <TouchableOpacity
             key={quest.id}
@@ -205,6 +146,7 @@ export default function QuestsScreen() {
                 : styles.questCardActive,
             ]}
             onPress={() => {
+              // LOCK IF COMPLETED
               if (!quest.isCompleted) {
                 router.push({
                   pathname: "/quest-details",
@@ -212,66 +154,53 @@ export default function QuestsScreen() {
                 });
               }
             }}
-            activeOpacity={0.8}
-            disabled={quest.isCompleted} // <--- THIS LOCKS IT
+            activeOpacity={quest.isCompleted ? 1 : 0.7}
           >
+            {/* Icon */}
             <View
               style={[
-                styles.decorBar,
-                quest.isCompleted
-                  ? styles.decorBarCompleted
-                  : styles.decorBarActive,
+                styles.iconBox,
+                quest.isCompleted && styles.iconBoxCompleted,
               ]}
-            />
-
-            <View style={styles.cardInner}>
-              <View style={styles.questHeader}>
-                <Text
-                  style={[
-                    styles.questTitle,
-                    quest.isCompleted && styles.textCompleted,
-                  ]}
-                >
-                  {quest.title}
-                </Text>
-                {quest.isCompleted ? (
-                  <View style={styles.statusBadgeDone}>
-                    <FontAwesome5 name="check" size={10} color="white" />
-                    <Text style={styles.statusTextDone}>DONE</Text>
-                  </View>
-                ) : (
-                  <View style={styles.statusBadgeActive}>
-                    <Text style={styles.statusTextActive}>ACTIVE</Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={styles.questDescription} numberOfLines={2}>
-                {quest.description}
-              </Text>
-
-              <View style={styles.cardFooter}>
-                {!quest.isCompleted && (
-                  <View style={styles.rewardTag}>
-                    <Qcoin width={14} height={14} />
-                    <Text style={styles.rewardText}>+{quest.xp_reward} QP</Text>
-                  </View>
-                )}
-
-                {!quest.isCompleted && (
-                  <View style={styles.startBtn}>
-                    <Text style={styles.startBtnText}>START</Text>
-                    <FontAwesome5
-                      name="chevron-right"
-                      size={10}
-                      color="#E0E0E0"
-                    />
-                  </View>
-                )}
-              </View>
+            >
+              <FontAwesome5
+                name={quest.isCompleted ? "check" : quest.icon_type || "scroll"}
+                size={18}
+                color={quest.isCompleted ? "white" : "#FFD700"}
+              />
             </View>
+
+            {/* Content */}
+            <View style={styles.cardContent}>
+              <Text
+                style={[
+                  styles.cardTitle,
+                  quest.isCompleted && styles.textCompleted,
+                ]}
+              >
+                {quest.title}
+              </Text>
+              <Text style={styles.cardDesc} numberOfLines={1}>
+                {quest.isCompleted
+                  ? "Completed on " + new Date().toLocaleDateString()
+                  : quest.description}
+              </Text>
+            </View>
+
+            {/* Right Side */}
+            {!quest.isCompleted && (
+              <View style={styles.rewardPill}>
+                <Text style={styles.rewardText}>+{QUEST_REWARD}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
+
+        {quests.length === 0 && (
+          <Text style={styles.emptyText}>
+            No quests available for your crop.
+          </Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -294,175 +223,84 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   offlineText: { color: "white", fontWeight: "bold" },
-  statsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
-  statPill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E1E1E",
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#333",
-    gap: 12,
-  },
-  rankPill: {
-    borderColor: "rgba(255, 215, 0, 0.3)",
-    backgroundColor: "rgba(255, 215, 0, 0.05)",
-  },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#2C2C2E",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  iconCircleGold: { backgroundColor: "rgba(255, 215, 0, 0.1)" },
-  statLabel: {
-    color: "#888",
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  statValue: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    fontFamily: PIXEL_FONT,
-    marginTop: 2,
-  },
-  leaderboardBanner: {
-    backgroundColor: "#FF8F00",
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 30,
-    elevation: 8,
-    shadowColor: "#FF8F00",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  lbContent: { flex: 1, paddingRight: 10 },
-  lbTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "900",
-    fontFamily: PIXEL_FONT,
-    marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.2)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  lbDesc: { color: "rgba(255,255,255,0.9)", fontSize: 14, marginBottom: 12 },
-  lbButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.2)",
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    gap: 6,
-  },
-  lbButtonText: { color: "white", fontSize: 10, fontWeight: "bold" },
-  lbIconContainer: { justifyContent: "center", alignItems: "center" },
-  sectionTitle: {
-    color: "#888",
-    fontSize: 12,
-    fontWeight: "bold",
-    marginBottom: 15,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-  },
-  questCard: {
-    backgroundColor: "#1E1E1E",
-    borderRadius: 16,
-    marginBottom: 16,
-    flexDirection: "row",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#333",
-    elevation: 4,
-  },
-  questCardActive: { borderColor: "#7B1FA2", backgroundColor: "#241a2e" },
-  questCardCompleted: {
-    borderColor: "#2E7D32",
-    backgroundColor: "#1B3E20",
-    opacity: 0.8,
-  },
-  decorBar: { width: 6, height: "100%" },
-  decorBarActive: { backgroundColor: "#7B1FA2" },
-  decorBarCompleted: { backgroundColor: "#4CAF50" },
-  cardInner: { flex: 1, padding: 16 },
-  questHeader: {
+
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 25,
   },
-  questTitle: {
+  headerTitle: {
+    color: "white",
+    fontSize: 28,
+    fontWeight: "bold",
+    fontFamily: PIXEL_FONT,
+  },
+  headerSub: { color: "#888", fontSize: 12, marginTop: 4 },
+
+  coinBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E1E1E",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  coinText: {
+    color: "#FFD700",
+    fontWeight: "bold",
+    fontFamily: PIXEL_FONT,
+    fontSize: 16,
+  },
+
+  questCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E1E1E",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  questCardActive: { borderLeftWidth: 4, borderLeftColor: "#FFD700" },
+  questCardCompleted: {
+    backgroundColor: "#1B2E1B",
+    borderColor: "#2E7D32",
+    opacity: 0.7,
+  }, // Dark Green tint
+
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  iconBoxCompleted: { backgroundColor: "#2E7D32" },
+
+  cardContent: { flex: 1 },
+  cardTitle: {
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
-    flex: 1,
-    marginRight: 10,
+    marginBottom: 4,
   },
-  textCompleted: { color: "#A5D6A7", textDecorationLine: "line-through" },
-  statusBadgeActive: {
-    backgroundColor: "rgba(123, 31, 162, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#7B1FA2",
-  },
-  statusTextActive: { color: "#E1BEE7", fontSize: 10, fontWeight: "bold" },
-  statusBadgeDone: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#2E7D32",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusTextDone: { color: "white", fontSize: 10, fontWeight: "bold" },
-  questDescription: {
-    color: "#B0B0B0",
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  rewardTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(0,0,0,0.3)",
+  cardDesc: { color: "#888", fontSize: 12 },
+  textCompleted: { color: "#81C784", textDecorationLine: "line-through" },
+
+  rewardPill: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  rewardText: {
-    color: "#FFD700",
-    fontSize: 12,
-    fontWeight: "bold",
-    fontFamily: PIXEL_FONT,
-  },
-  startBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  startBtnText: {
-    color: "#E0E0E0",
-    fontSize: 12,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
+  rewardText: { color: "#FFD700", fontSize: 12, fontWeight: "bold" },
+
+  emptyText: { color: "#666", textAlign: "center", marginTop: 40 },
 });

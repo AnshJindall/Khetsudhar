@@ -61,6 +61,8 @@ export default function QuizScreen() {
 
     setIsSubmitting(true);
     const isCorrect = selectedAnswer === quizData.correct_answer;
+    
+    // Update UI immediately
     setResultState(isCorrect ? "correct" : "incorrect");
 
     if (isCorrect) {
@@ -69,31 +71,51 @@ export default function QuizScreen() {
         const userId = session.session?.user.id;
 
         if (userId) {
-          // 1. Mark as Complete (Insert into user_quests)
+          // --- STEP 1: MARK AS COMPLETE ---
+          // We insert into user_quests. If it fails, we catch the error.
           const { error: insertError } = await supabase
             .from("user_quests")
             .insert({ user_id: userId, quest_id: quizData.id });
 
-          // Only add coins if this was a new completion (no duplicate error)
-          if (!insertError || insertError.code === "23505") {
-            // 2. Fetch current coins
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("quest_coins")
-              .eq("id", userId)
-              .single();
+          // If error is NOT "duplicate key" (code 23505), then it's a real error.
+          if (insertError && insertError.code !== "23505") {
+             console.error("Quest Insert Error:", insertError);
+             Alert.alert("Error Saving Quest", insertError.message);
+             setIsSubmitting(false);
+             return; 
+          }
 
-            const currentCoins = profile?.quest_coins || 0;
+          // --- STEP 2: ADD COINS ---
+          // Only proceed if there was NO error, or if it was a duplicate (already done)
+          // We fetch the profile first to get the current balance.
+          const { data: profile, error: fetchError } = await supabase
+            .from("profiles")
+            .select("quest_coins")
+            .eq("id", userId)
+            .single();
 
-            // 3. Add 1000 Coins
-            await supabase
-              .from("profiles")
-              .update({ quest_coins: currentCoins + QUEST_REWARD })
-              .eq("id", userId);
+          if (fetchError) {
+             console.error("Profile Fetch Error:", fetchError);
+             // We don't stop here, but we warn.
+          } else {
+             const currentCoins = profile?.quest_coins || 0;
+             const newBalance = currentCoins + QUEST_REWARD;
+             
+             // Update the coins
+             const { error: updateError } = await supabase
+               .from("profiles")
+               .update({ quest_coins: newBalance })
+               .eq("id", userId);
+
+             if (updateError) {
+                 console.error("Coin Update Error:", updateError);
+                 Alert.alert("Error Adding Coins", updateError.message);
+             }
           }
         }
-      } catch (err) {
-        console.error("Completion error", err);
+      } catch (err: any) {
+        console.error("Critical Completion error", err);
+        Alert.alert("Error", err.message || "An unexpected error occurred.");
       }
     }
     setIsSubmitting(false);

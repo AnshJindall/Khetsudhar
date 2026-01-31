@@ -1,10 +1,12 @@
 import { FontAwesome5 } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker"; // <--- Image Picker
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -20,42 +22,38 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import Svg, {
-  Defs,
-  LinearGradient,
-  Path,
-  Stop
-} from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 
 import { useCachedQuery } from "@/hooks/useCachedQuery";
 import { useTranslation } from "@/hooks/useTranslation";
 import { supabase } from "@/utils/supabase";
 
+// Assets
 import SusScoreIcon from "../assets/images/SusScore.svg";
 import UserIcon from "../assets/images/UserImage.svg";
 
 const PIXEL_FONT = "monospace";
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-// --- MOCK DATABASE (For Demo) ---
+// --- MOCK DATABASE ---
 const MOCK_DB: Record<string, any> = {
   "AGRI-001": {
     landSize: "2.5 Hectares",
-    location: "Punjab, India",
-    soilType: "Alluvial Soil",
+    location: "Punjab",
+    soilType: "Alluvial",
     primaryCrop: "Rice",
     status: "Active",
   },
   "AGRI-002": {
     landSize: "5.0 Acres",
-    location: "Kerala, India",
-    soilType: "Laterite Soil",
+    location: "Kerala",
+    soilType: "Laterite",
     primaryCrop: "Banana",
     status: "Active",
   },
   "AGRI-003": {
     landSize: "1.2 Hectares",
-    location: "Coorg, Karnataka",
+    location: "Karnataka",
     soilType: "Red Loam",
     primaryCrop: "Coffee",
     status: "Active",
@@ -148,17 +146,15 @@ export default function ProfileScreen() {
   const [agriStackId, setAgriStackId] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isLinked, setIsLinked] = useState(false);
-
-  // FIX: Added missing state variable
   const [fetchedData, setFetchedData] = useState<any>(null);
 
-  // --- FETCH PROFILE & CALCULATE SCORE ---
+  const [uploading, setUploading] = useState(false); // Avatar upload state
+
   const fetchProfileAndScore = async () => {
     const { data: session } = await supabase.auth.getSession();
     const userId = session.session?.user.id;
     if (!userId) return null;
 
-    // 1. Get Profile
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
@@ -166,7 +162,6 @@ export default function ProfileScreen() {
       .single();
     const userCrop = profile?.selected_crop;
 
-    // 2. Lessons Score (60%)
     const { count: totalLessons } = await supabase
       .from("lessons")
       .select("*", { count: "exact", head: true });
@@ -178,29 +173,23 @@ export default function ProfileScreen() {
       ? (completedLessons || 0) / totalLessons
       : 0;
 
-    // 3. Quests Score (40%)
     let questQuery = supabase
       .from("quests")
       .select("*", { count: "exact", head: true });
-
-    if (userCrop) {
+    if (userCrop)
       questQuery = questQuery.or(
         `target_crop.is.null,target_crop.eq.${userCrop}`,
       );
-    } else {
-      questQuery = questQuery.is("target_crop", null);
-    }
+    else questQuery = questQuery.is("target_crop", null);
 
     const { count: totalQuests } = await questQuery;
     const { count: completedQuests } = await supabase
       .from("user_quests")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId);
-
     const questsScore =
       totalQuests && totalQuests > 0 ? (completedQuests || 0) / totalQuests : 0;
 
-    // 4. Weighted Formula
     const finalScore = Math.round(
       lessonsScore * 100 * 0.6 + questsScore * 100 * 0.4,
     );
@@ -216,32 +205,90 @@ export default function ProfileScreen() {
     data: profile,
     refresh,
     refreshing,
-  } = useCachedQuery("profile_fixed_v4", fetchProfileAndScore);
+  } = useCachedQuery("profile_avatar_fixed", fetchProfileAndScore);
+
+  // --- AVATAR PICKER LOGIC ---
+  const pickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted")
+      return Alert.alert("Permission needed", "Please allow gallery access.");
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1], // Square crop for circle avatar
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      uploadAvatar(result.assets[0]);
+    }
+  };
+
+  const uploadAvatar = async (imageAsset: ImagePicker.ImagePickerAsset) => {
+    setUploading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user.id;
+      if (!userId) throw new Error("No user");
+
+      const ext = imageAsset.uri.split(".").pop();
+      const fileName = `${userId}/avatar_${Date.now()}.${ext}`;
+      const formData = new FormData();
+      formData.append("file", {
+        uri: imageAsset.uri,
+        name: fileName,
+        type: imageAsset.mimeType || `image/${ext}`,
+      } as any);
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, formData);
+
+      if (uploadError) {
+        console.warn("Storage upload failed, fallback to local URI.");
+        await supabase
+          .from("profiles")
+          .update({ avatar_url: imageAsset.uri })
+          .eq("id", userId);
+      } else {
+        const { data: publicUrlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(fileName);
+        await supabase
+          .from("profiles")
+          .update({ avatar_url: publicUrlData.publicUrl })
+          .eq("id", userId);
+      }
+
+      refresh();
+      Alert.alert("Updated", "Profile picture changed!");
+    } catch (error) {
+      console.error("Avatar error:", error);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleVerifyAgriStack = () => {
     const id = agriStackId.trim().toUpperCase();
-
     if (!id) return Alert.alert("Error", "Enter Valid ID");
-
     setIsVerifying(true);
-
     setTimeout(() => {
       setIsVerifying(false);
-
       if (MOCK_DB[id]) {
         setIsLinked(true);
         setFetchedData(MOCK_DB[id]);
-        Alert.alert("Success", "AgriStack Verified! Records Fetched.");
+        Alert.alert("Success", "AgriStack Verified!");
       } else {
         setIsLinked(true);
         setFetchedData({
-          landSize: "Unknown Area",
+          landSize: "Unknown",
           location: "Registered Farm",
-          soilType: "Standard Soil",
+          soilType: "Standard",
           primaryCrop: "Mixed",
-          status: "Pending Verification",
         });
-        Alert.alert("Notice", "ID Linked, but data is limited.");
+        Alert.alert("Notice", "ID Linked (Limited Data)");
       }
     }, 1500);
   };
@@ -259,11 +306,34 @@ export default function ProfileScreen() {
           />
         }
       >
-        {/* User Card */}
+        {/* --- USER PROFILE CARD (WITH AVATAR EDIT) --- */}
         <View style={styles.userCard}>
-          <View style={styles.avatarContainer}>
-            <UserIcon width={70} height={70} />
-          </View>
+          {/* AVATAR SECTION */}
+          <TouchableOpacity
+            onPress={pickAvatar}
+            style={styles.avatarContainer}
+            activeOpacity={0.8}
+            disabled={uploading}
+          >
+            {profile?.avatar_url ? (
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <UserIcon width={70} height={70} />
+            )}
+
+            {/* Camera Badge */}
+            <View style={styles.editBadge}>
+              {uploading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <FontAwesome5 name="camera" size={10} color="white" />
+              )}
+            </View>
+          </TouchableOpacity>
+
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
               {profile?.full_name || "Farmer"}
@@ -348,8 +418,6 @@ export default function ProfileScreen() {
               <Text style={{ color: "#666", fontSize: 12 }}>Not Linked</Text>
             )}
           </View>
-
-          {/* If Linked, Show Data */}
           {isLinked && fetchedData ? (
             <View
               style={{
@@ -360,13 +428,10 @@ export default function ProfileScreen() {
               }}
             >
               <Text style={{ color: "#DDD", fontSize: 12 }}>
-                Land: {fetchedData.landSize}
+                • Land: {fetchedData.landSize}
               </Text>
               <Text style={{ color: "#DDD", fontSize: 12 }}>
-                Soil: {fetchedData.soilType}
-              </Text>
-              <Text style={{ color: "#DDD", fontSize: 12 }}>
-                Crop: {fetchedData.primaryCrop}
+                • Crop: {fetchedData.primaryCrop}
               </Text>
             </View>
           ) : (
@@ -393,7 +458,7 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Settings Menu */}
+        {/* Preferences */}
         <Text style={styles.sectionLabel}>PREFERENCES</Text>
         <View style={styles.menuContainer}>
           <TouchableOpacity
@@ -410,7 +475,6 @@ export default function ProfileScreen() {
             </Text>
             <FontAwesome5 name="chevron-right" size={12} color="#666" />
           </TouchableOpacity>
-
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => router.push("/language")}
@@ -443,6 +507,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#121212" },
   scrollContent: { padding: 20 },
+
+  // User Card (Clean & Compact)
   userCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -453,7 +519,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#333",
   },
-  avatarContainer: { marginRight: 16 },
+
+  // Avatar Styles
+  avatarContainer: { marginRight: 16, position: "relative" },
+  avatarImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: "#4CAF50",
+  },
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#4CAF50",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#1E1E1E",
+  },
+
   userInfo: { flex: 1 },
   userName: {
     color: "white",
@@ -471,6 +560,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   roleText: { color: "white", fontSize: 10, fontWeight: "bold" },
+
+  // Sections
   sectionLabel: {
     color: "#666",
     fontSize: 12,
